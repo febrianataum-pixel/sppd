@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "Employee": {
+      "title": "Employee",
+      "description": "Data karyawan/pegawai Dinsos PPPA Blora",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Nama lengkap" },
+        "nip": { "type": "string", "description": "NIP Pegawai" },
+        "jabatan": { "type": "string", "description": "Jabatan" },
+        "pangkat": { "type": "string", "description": "Pangkat" },
+        "golongan": { "type": "string", "description": "Golongan" },
+        "tingkatSppd": { "type": "string", "description": "Tingkat SPPD (A-H)" },
+        "jabatanSppd": { "type": "string", "description": "Jabatan dalam SPPD" }
+      },
+      "required": ["name", "nip", "jabatan"]
+    },
+    "SubActivity": {
+      "title": "Sub Activity",
+      "description": "Data Sub Kegiatan",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "description": "Kode Sub Kegiatan" },
+        "name": { "type": "string", "description": "Nama Sub Kegiatan" }
+      },
+      "required": ["code", "name"]
+    },
+    "SPPD": {
+      "title": "SPPD",
+      "description": "Surat Perintah Perjalanan Dinas",
+      "type": "object",
+      "properties": {
+        "number": { "type": "string", "description": "Nomor SPPD" },
+        "ppkId": { "type": "string", "description": "ID Pejabat Pembuat Komitmen" },
+        "employeeId": { "type": "string", "description": "ID Pegawai yang diperintah" },
+        "tingkatBiaya": { "type": "string", "description": "Tingkat Biaya Perjalanan Dinas" },
+        "purpose": { "type": "string", "description": "Maksud Perjalanan" },
+        "transport": { "type": "string", "description": "Alat Angkut" },
+        "departureLocation": { "type": "string", "description": "Tempat Berangkat" },
+        "destination": { "type": "string", "description": "Tempat Tujuan" },
+        "duration": { "type": "integer", "description": "Lama Perjalanan (Hari)" },
+        "departureDate": { "type": "string", "format": "date", "description": "Tanggal Berangkat" },
+        "returnDate": { "type": "string", "format": "date", "description": "Tanggal Kembali" },
+        "followers": { 
+          "type": "array", 
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "nip": { "type": "string" },
+              "gol": { "type": "string" },
+              "tingkat": { "type": "string" },
+              "ket": { "type": "string" }
+            }
+          }
+        },
+        "subActivityId": { "type": "string", "description": "ID Sub Kegiatan" },
+        "bidang": { "type": "string", "enum": ["Sekretariat", "Bidang Sosial", "Bidang PPPA"], "description": "Bidang / Bendahara Pembantu Bidang" },
+        "otherNotes": { "type": "string", "description": "Keterangan lain-lain" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["draft", "active", "completed"] },
+        "reportResults": { "type": "array", "items": { "type": "string" }, "description": "Hasil Perjalanan Dinas (per nomor)" },
+        "documentation": { "type": "array", "items": { "type": "string" }, "description": "Dokumentasi Kegiatan (Base64 Images)" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ppkId", "employeeId", "destination", "departureDate", "returnDate"]
+    },
+    "AppSettings": {
+      "title": "App Settings",
+      "description": "Utilitas dan Pengaturan Aplikasi",
+      "type": "object",
+      "properties": {
+        "logo": { "type": "string", "description": "Base64 Logo KOP" },
+        "legalBasis": { "type": "array", "items": { "type": "string" }, "description": "Dasar Hukum Surat Tugas" },
+        "travelCosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tingkat": { "type": "string" },
+              "type": { "type": "string", "enum": ["Dalam Daerah", "Luar Daerah"] },
+              "amount": { "type": "number" }
+            }
+          }
+        },
+        "fuelPrices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "price": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/employees": { "schema": "Employee", "description": "Collection of employees" },
+    "/sub_activities": { "schema": "SubActivity", "description": "Collection of sub activities" },
+    "/sppd": { "schema": "SPPD", "description": "Collection of SPPD documents" },
+    "/settings": { "schema": "AppSettings", "description": "App settings document" }
+  }
+}

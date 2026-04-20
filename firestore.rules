@@ -1,0 +1,154 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: employees
+// Fields:
+//   - name: string (required)
+//   - nip: string (required)
+//   - jabatan: string (required)
+//   - pangkat: string (optional)
+//   - golongan: string (optional)
+//   - tingkatSppd: string (optional)
+//   - jabatanSppd: string (optional)
+//
+// Collection: sub_activities
+// Fields:
+//   - code: string (required)
+//   - name: string (required)
+//
+// Collection: sppd
+// Fields:
+//   - number: string (optional)
+//   - ppkId: string (required)
+//   - employeeId: string (required)
+//   - tingkatBiaya: string (required)
+//   - purpose: string (required)
+//   - transport: string (required)
+//   - departureLocation: string (required)
+//   - destination: string (required)
+//   - duration: number (required)
+//   - departureDate: string (required, format: date)
+//   - returnDate: string (required, format: date)
+//   - followers: list (required)
+//   - subActivityId: string (required)
+//   - otherNotes: string (required)
+//   - createdAt: string (required, format: date-time)
+//   - status: string (required, enum: ['draft', 'active', 'completed'])
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "febrianataum@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidString(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}.*");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidEmployee(data) {
+      return data.keys().hasAll(['name', 'nip', 'jabatan']) &&
+        data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+        data.nip is string && data.nip.size() > 0 && data.nip.size() < 50 &&
+        data.jabatan is string && data.jabatan.size() > 0 && data.jabatan.size() < 100 &&
+        (!('pangkat' in data) || data.pangkat is string) &&
+        (!('golongan' in data) || data.golongan is string) &&
+        (!('tingkatSppd' in data) || data.tingkatSppd is string) &&
+        (!('jabatanSppd' in data) || data.jabatanSppd is string);
+    }
+
+    function isValidSubActivity(data) {
+      return data.keys().hasAll(['code', 'name']) &&
+        data.code is string && data.code.size() > 0 && data.code.size() < 50 &&
+        data.name is string && data.name.size() > 0 && data.name.size() < 255;
+    }
+
+    function isValidSPPD(data) {
+      let requiredFields = ['ppkId', 'employeeId', 'tingkatBiaya', 'purpose', 'transport', 'departureLocation', 'destination', 'duration', 'departureDate', 'returnDate', 'followers', 'subActivityId', 'otherNotes', 'createdAt', 'status'];
+      return data.keys().hasAll(requiredFields) &&
+        data.ppkId is string &&
+        data.employeeId is string &&
+        data.tingkatBiaya is string &&
+        data.purpose is string &&
+        data.transport is string &&
+        data.departureLocation is string &&
+        data.destination is string &&
+        data.duration is number &&
+        isValidDateString(data.departureDate) &&
+        isValidDateString(data.returnDate) &&
+        data.followers is list &&
+        data.subActivityId is string &&
+        data.otherNotes is string &&
+        data.status in ['draft', 'active', 'completed'] &&
+        (!('number' in data) || data.number is string);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /employees/{employeeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidEmployee(request.resource.data);
+      allow update: if isAuthenticated() && isValidEmployee(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /sub_activities/{activityId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidSubActivity(request.resource.data);
+      allow update: if isAuthenticated() && isValidSubActivity(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /sppd/{sppdId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidSPPD(request.resource.data);
+      allow update: if isAuthenticated() && isValidSPPD(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    match /test/{docId} {
+      allow read: if true;
+    }
+  }
+}
