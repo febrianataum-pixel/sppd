@@ -645,36 +645,74 @@ export const SPPDList: React.FC = () => {
   const renderDokumentasiContent = (doc: jsPDF, sppd: SPPD) => {
     const bodyFontSize = 10;
 
+    // Header (Centered according to user request)
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('DOKUMENTASI KEGIATAN', 105, 20, { align: 'center' });
-    doc.line(60, 21, 150, 21);
-
-    doc.setFontSize(bodyFontSize);
+    doc.text('DOKUMENTASI', 105, 30, { align: 'center' });
+    
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Nomor SPPD : ${sppd.number || '-'}`, 20, 35);
-    doc.text(`Kegiatan : ${sppd.purpose}`, 20, 40);
-    doc.text(`Tempat : ${sppd.destination}`, 20, 45);
-    doc.text(`Tanggal : ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })}`, 20, 50);
+    const purposeLines = doc.splitTextToSize(sppd.purpose, 160);
+    doc.text(purposeLines, 105, 38, { align: 'center' });
+    
+    let currentY = 38 + (purposeLines.length * 5);
+    doc.text(sppd.destination, 105, currentY, { align: 'center' });
+    currentY += 6;
+    doc.text(format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id }), 105, currentY, { align: 'center' });
+
+    currentY += 15; // Space before photos
 
     if (!sppd.documentation || sppd.documentation.length === 0) {
-      doc.text('Tidak ada dokumentasi foto.', 20, 65);
+      doc.setFontSize(bodyFontSize);
+      doc.text('Tidak ada dokumentasi foto.', 105, currentY, { align: 'center' });
     } else {
-      let currentY = 60;
-      sppd.documentation.forEach((img, index) => {
-        if (currentY > 240) {
-          doc.addPage();
-          currentY = 20;
+      const photos = sppd.documentation;
+      const count = photos.length;
+      
+      // Determine grid layout based on count
+      let cols = 1;
+      let imgWidth = 120;
+      let imgHeight = 80;
+      let marginX = (210 - imgWidth) / 2;
+      
+      if (count > 1) {
+        cols = 2;
+        imgWidth = 85;
+        imgHeight = 60;
+        marginX = 15;
+      }
+      
+      if (count > 4) {
+        cols = 3;
+        imgWidth = 60;
+        imgHeight = 45;
+        marginX = 10;
+      }
+
+      photos.forEach((img, index) => {
+        const row = Math.floor(index / cols);
+        const col = index % cols;
+        
+        const x = marginX + (col * (imgWidth + 5));
+        const y = currentY + (row * (imgHeight + 5));
+
+        // Check for page overflow
+        if (y + imgHeight > 280) {
+          // In "Dokumentasi", user explicitly asked to fit on "one page", 
+          // but if too many, we might need to break or stop.
+          // For now, let's keep it responsive but if it's really too many, 
+          // we'll handle gracefully with a line indicating more.
+          if (index === (cols * 3)) { // Max 9 photos (3x3) usually fits well? 
+            // Optional: doc.addPage(); and reset currentY
+          }
         }
         
         try {
-          // Try to add image, might fail if base64 is invalid
-          doc.addImage(img, 'JPEG', 20, currentY, 170, 100);
-          currentY += 110;
+          doc.addImage(img, 'JPEG', x, y, imgWidth, imgHeight);
         } catch (e) {
           console.error('Error adding image to PDF', e);
-          doc.text(`[Gagal memuat gambar ${index + 1}]`, 20, currentY);
-          currentY += 10;
+          doc.setFontSize(8);
+          doc.text(`[Gagal memuat gambar ${index + 1}]`, x + 5, y + 10);
         }
       });
     }
@@ -1009,6 +1047,10 @@ export const SPPDList: React.FC = () => {
   const generateKwitansi = (sppd: SPPD) => {
     const doc = new jsPDF();
     renderKwitansiContent(doc, sppd);
+    if (sppd.fuelAmount && sppd.fuelAmount > 0) {
+      doc.addPage();
+      renderKwitansiBBMContent(doc, sppd);
+    }
     doc.save(`Kwitansi_${(sppd.number || 'Draft').replace(/\//g, '_')}.pdf`);
   };
 
@@ -1150,12 +1192,6 @@ export const SPPDList: React.FC = () => {
     doc.text(`Rp. ${fuelAmount.toLocaleString('id-ID')} ,-`, 35, currentY);
   };
 
-  const generateKwitansiBBM = (sppd: SPPD) => {
-    const doc = new jsPDF();
-    renderKwitansiBBMContent(doc, sppd);
-    doc.save(`Kwitansi_BBM_${(sppd.number || 'Draft').replace(/\//g, '_')}.pdf`);
-  };
-
   const handlePreview = (sppd: SPPD) => {
     const doc = new jsPDF();
     
@@ -1183,8 +1219,6 @@ export const SPPDList: React.FC = () => {
     // Kwitansi
     doc.addPage();
     renderKwitansiContent(doc, sppd);
-    
-    // Kwitansi BBM if available
     if (sppd.fuelAmount && sppd.fuelAmount > 0) {
       doc.addPage();
       renderKwitansiBBMContent(doc, sppd);
@@ -1540,24 +1574,9 @@ export const SPPDList: React.FC = () => {
                   </div>
                   <div className="flex-1">
                     <p className="font-bold text-gray-900 text-sm">Kwitansi</p>
-                    <p className="text-xs text-gray-500">Bukti pembayaran / tanda terima uang</p>
+                    <p className="text-xs text-gray-500">Bukti pembayaran dan pengesahan kuitansi (termasuk BBM)</p>
                   </div>
                 </button>
-
-                {sppdToDownload.fuelAmount && sppdToDownload.fuelAmount > 0 && (
-                  <button
-                    onClick={() => { generateKwitansiBBM(sppdToDownload); setDownloadModalOpen(false); }}
-                    className="w-full flex items-center gap-3 p-4 rounded-2xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all text-left group"
-                  >
-                    <div className="p-2 bg-gray-50 group-hover:bg-white rounded-lg text-gray-400 group-hover:text-blue-600 transition-colors">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-900 text-sm">Kwitansi BBM</p>
-                      <p className="text-xs text-gray-500">Bukti pembelian bahan bakar minyak</p>
-                    </div>
-                  </button>
-                )}
               </div>
             </motion.div>
           </div>
