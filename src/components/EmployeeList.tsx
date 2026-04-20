@@ -9,7 +9,9 @@ import {
   Check,
   Loader2,
   AlertCircle,
-  Upload
+  Upload,
+  HelpCircle,
+  Info
 } from 'lucide-react';
 import { 
   collection, 
@@ -36,6 +38,7 @@ export const EmployeeList: React.FC = () => {
   const [isLoading, setLoading] = useState(false);
   const [isImporting, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showImportInfo, setShowImportInfo] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, 'employees'), orderBy('name', 'asc'));
@@ -144,6 +147,13 @@ export const EmployeeList: React.FC = () => {
           <p className="text-gray-500 text-sm">Kelola data pegawai Dinsos PPPA Blora.</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowImportInfo(!showImportInfo)}
+            className={`p-2.5 rounded-xl border transition-all ${showImportInfo ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-gray-200 text-gray-400 hover:text-gray-600'}`}
+            title="Petunjuk Import"
+          >
+            <HelpCircle className="w-5 h-5" />
+          </button>
           <label className="flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl transition-all hover:bg-gray-50 cursor-pointer font-medium">
             <input
               type="file"
@@ -167,6 +177,46 @@ export const EmployeeList: React.FC = () => {
           </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showImportInfo && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-blue-50 border border-blue-100 p-6 rounded-2xl space-y-4">
+              <div className="flex items-center gap-2 text-blue-800 font-bold">
+                <Info className="w-5 h-5" />
+                Petunjuk Format Import CSV
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                <div className="space-y-2">
+                  <p className="font-bold text-blue-900 uppercase tracking-wider text-[10px]">Header Kolom yang Wajib Ada:</p>
+                  <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-blue-700 font-medium">
+                    <li>• Nama</li>
+                    <li>• NIP</li>
+                    <li>• Jabatan</li>
+                    <li>• Pangkat</li>
+                    <li>• Golongan</li>
+                    <li>• Tingkat SPPD</li>
+                    <li>• Jabatan dalam SPPD</li>
+                  </ul>
+                </div>
+                <div className="space-y-2 text-blue-700">
+                  <p className="font-bold text-blue-900 uppercase tracking-wider text-[10px]">Peringatan Penting:</p>
+                  <ul className="space-y-1 font-medium italic">
+                    <li>- Pastikan file disimpan dengan format <span className="font-bold underline">CSV (Comma delimited)</span>.</li>
+                    <li>- <span className="font-bold">Tingkat SPPD</span> wajib diisi satu huruf saja (A, B, C, D, E, F, G, atau H).</li>
+                    <li>- Hindari penggunaan simbol "kutip" di dalam isi data Nama atau Jabatan.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Search & Stats */}
       <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">

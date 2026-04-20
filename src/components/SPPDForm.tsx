@@ -184,7 +184,7 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
         nip: emp.nip,
         gol: emp.golongan || '',
         tingkat: emp.tingkatSppd || '',
-        ket: ''
+        ket: emp.jabatan || ''
       };
       return { ...prev, followers: newFollowers };
     });
