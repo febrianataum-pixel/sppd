@@ -54,6 +54,7 @@ export const SPPDList: React.FC = () => {
   const [sppdToDownload, setSppdToDownload] = useState<SPPD | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewFilename, setPreviewFilename] = useState<string>('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({
     key: 'createdAt',
     direction: 'desc'
@@ -918,55 +919,8 @@ export const SPPDList: React.FC = () => {
     const transportCost = 150000;
     const totalAmount = (dailyAllowance * sppd.duration) + transportCost;
 
-    // Top Section: PENGESAHAN KUITANSI (BBM Table as per user request)
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('PENGESAHAN KUITANSI ATAU BUKTI PEMBELIAN/PEMBAYARAN', 105, 15, { align: 'center' });
-    doc.line(15, 17, 195, 17);
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text('1. Berdasarkan bukti pembelian/kuitansi tersebut dibawah ini telah dilakukan:', 20, 25);
-    const wrapText = doc.splitTextToSize('serah terima hasil pekerjaan 100% (seratus persen) dari pihak Penyedia barang/jasa kepada Pengguna Barang/Kuasa Pengguna Barang;', 170);
-    doc.text(wrapText, 25, 30);
-    doc.text('2. pemeriksaan administratif oleh pejabat pemeriksa hasil pekerjaan;', 20, 30 + (wrapText.length * 5));
-
-    autoTable(doc, {
-      startY: 35 + (wrapText.length * 5),
-      head: [['NO', 'URAIAN PEKERJAAN', 'JUMLAH', 'SATUAN UKURAN', 'HARGA SATUAN', 'JUMLAH']],
-      body: [
-        ['1', 'Belanja Bahan-bahan Bakar dan Pelumas', '', '', '', ''],
-        ['', `BBM ${sppd.fuelType || '-'}`, quantity, 'Lt', 'Rp. ' + pricePerLiter.toLocaleString('id-ID'), 'Rp. ' + fuelAmount.toLocaleString('id-ID')],
-        ['', '', '', '', '', ''],
-        [{ content: 'TOTAL', colSpan: 5, styles: { halign: 'center', fontStyle: 'bold' } }, { content: 'Rp. ' + fuelAmount.toLocaleString('id-ID'), styles: { fontStyle: 'bold' } }]
-      ],
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.1 },
-      headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-      columnStyles: {
-        0: { halign: 'center', cellWidth: 10 },
-        2: { halign: 'center' },
-        3: { halign: 'center' },
-        4: { halign: 'right' },
-        5: { halign: 'right' }
-      }
-    });
-
-    let currentY = (doc as any).lastAutoTable.finalY + 10;
-    doc.setFont('helvetica', 'normal');
-    doc.text('Pejabat Penandatangan Kontrak', 140, currentY);
-    currentY += 20;
-    doc.setFont('helvetica', 'bold');
-    doc.text(ppk?.name || '', 140, currentY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`NIP. ${ppk?.nip || ''}`, 140, currentY + 5);
-
-    // Separator
-    currentY += 15;
-    doc.line(15, currentY, 195, currentY);
-
     // Bottom Section: KWITANSI
-    currentY += 15;
+    let currentY = 20;
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text('K W I T A N S I', 105, currentY, { align: 'center' });
@@ -1226,6 +1180,13 @@ export const SPPDList: React.FC = () => {
 
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
+    
+    // Set custom filename with date and purpose
+    const formattedDate = format(new Date(sppd.departureDate), 'yyyyMMdd');
+    const safePurpose = sppd.purpose.substring(0, 30).replace(/[^a-z0-9]/gi, '_');
+    const filename = `[${formattedDate}_${safePurpose}].pdf`;
+    
+    setPreviewFilename(filename);
     setPreviewUrl(url);
     setIsPreviewModalOpen(true);
   };
@@ -1618,8 +1579,8 @@ export const SPPDList: React.FC = () => {
                   <button
                     onClick={() => {
                       const link = document.createElement('a');
-                      link.href = previewUrl;
-                      link.download = `Full_Dokumen_SPPD.pdf`;
+                      link.href = previewUrl!;
+                      link.download = previewFilename;
                       link.click();
                     }}
                     className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-all shadow-lg shadow-blue-200 text-sm font-medium"
