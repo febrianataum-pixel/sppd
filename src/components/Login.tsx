@@ -1,16 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { auth } from '../lib/firebase';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { FileText, LogIn, ShieldCheck } from 'lucide-react';
+import { FileText, LogIn, ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export const Login: React.FC = () => {
+  const [error, setError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const handleLogin = async () => {
+    setError(null);
+    setIsLoggingIn(true);
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login failed:', error);
+      if (error.code === 'auth/popup-blocked') {
+        setError('Popup terblokir oleh browser. Harap izinkan popup untuk situs ini.');
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        setError('Proses login dibatalkan.');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        setError('Domain ini belum diizinkan di Firebase Console. Harap hubungi admin.');
+      } else {
+        setError('Gagal masuk. Silakan coba lagi atau periksa koneksi Anda.');
+      }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -42,16 +58,34 @@ export const Login: React.FC = () => {
               Akses khusus internal instansi pemerintah Kabupaten Blora.
             </div>
 
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-3 p-4 bg-red-50 rounded-2xl text-red-700 text-sm font-medium border border-red-100"
+              >
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                {error}
+              </motion.div>
+            )}
+
             <button
               onClick={handleLogin}
-              className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 text-gray-700 font-bold py-4 px-6 rounded-2xl border-2 border-gray-100 transition-all active:scale-95 shadow-sm"
+              disabled={isLoggingIn}
+              className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 font-bold py-4 px-6 rounded-2xl border-2 border-gray-100 transition-all active:scale-95 shadow-sm"
             >
-              <img 
-                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
-                alt="Google" 
-                className="w-6 h-6"
-              />
-              Masuk dengan Google
+              {isLoggingIn ? (
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+              ) : (
+                <>
+                  <img 
+                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
+                    alt="Google" 
+                    className="w-6 h-6"
+                  />
+                  Masuk dengan Google
+                </>
+              )}
             </button>
           </div>
 
