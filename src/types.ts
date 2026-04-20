@@ -72,6 +72,9 @@ export interface SPPD {
   fuelType?: string;
   fuelAmount?: number;
   completedAt?: string;
+  invitationFrom?: string;
+  invitationNumber?: string;
+  invitationSubject?: string;
 }
 
 export enum OperationType {

@@ -323,13 +323,32 @@ export const SPPDList: React.FC = () => {
     doc.text(':', 45, 70);
     
     const legalBasis = (settings?.legalBasis && settings.legalBasis.length > 0) 
-      ? settings.legalBasis 
+      ? [...settings.legalBasis]
       : [
-          'Peraturan Daerah Kabupaten Blora Nomor 11 tahun 2024, tentang Anggaran Pendapatan dan Belanja Daerah Kabupaten Blora Tahun 2025;',
+          'Peraturan Daerah Kabupaten Blora Nomor 11 tahun 2024, tentang Anggaran Pendapatan dan Belanja Daerah Kabupaten Blora Tahun 2024;',
           'Peraturan Bupati Blora Nomor 42 Tahun 2024 tentang Anggaran Pendapatan dan Belanja Daerah Kab. Blora Tahun 2025;',
           'Dokumen Pelaksanaan Anggaran Satuan Kerja Perangkat Daerah (DPA SKPD) Nomor 900/4689/2024 Tahun Anggaran 2025;',
           'Kepentingan Dinas.'
         ];
+
+    // Add invitation as number 4 if it exists
+    if (sppd.invitationFrom || sppd.invitationNumber || sppd.invitationSubject) {
+      const invitationParts = [];
+      if (sppd.invitationSubject) invitationParts.push(`Perihal ${sppd.invitationSubject}`);
+      if (sppd.invitationFrom) invitationParts.push(`dari ${sppd.invitationFrom}`);
+      if (sppd.invitationNumber) invitationParts.push(`dengan Nomor Surat ${sppd.invitationNumber}`);
+      
+      const invitationText = invitationParts.length > 0 
+        ? `${invitationParts.join(' ')}.`
+        : 'Kepentingan Dinas.';
+
+      // Replace or insert at index 3 (item number 4)
+      if (legalBasis.length >= 4) {
+        legalBasis.splice(3, 0, invitationText);
+      } else {
+        legalBasis.push(invitationText);
+      }
+    }
 
     autoTable(doc, {
       startY: 66,
@@ -1173,10 +1192,6 @@ export const SPPDList: React.FC = () => {
     // Kwitansi
     doc.addPage();
     renderKwitansiContent(doc, sppd);
-    if (sppd.fuelAmount && sppd.fuelAmount > 0) {
-      doc.addPage();
-      renderKwitansiBBMContent(doc, sppd);
-    }
 
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);

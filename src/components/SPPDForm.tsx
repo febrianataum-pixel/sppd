@@ -382,6 +382,42 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
                         </select>
                       </div>
                     </div>
+
+                    <div className="pt-4 border-t border-gray-50 space-y-4">
+                      <p className="text-xs font-bold text-blue-600 uppercase tracking-widest ml-1 flex items-center gap-2">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        Informasi Undangan (Opsional)
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Kolom Undangan (Dari?)</label>
+                          <input
+                            value={formData.invitationFrom || ''}
+                            onChange={(e) => setFormData({ ...formData, invitationFrom: e.target.value })}
+                            className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                            placeholder="Contoh: Sekretaris Daerah..."
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Nomor Surat Undangan</label>
+                          <input
+                            value={formData.invitationNumber || ''}
+                            onChange={(e) => setFormData({ ...formData, invitationNumber: e.target.value })}
+                            className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                            placeholder="Masukkan nomor surat..."
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Perihal Undangan</label>
+                        <input
+                          value={formData.invitationSubject || ''}
+                          onChange={(e) => setFormData({ ...formData, invitationSubject: e.target.value })}
+                          className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                          placeholder="Contoh: Rapat Koordinasi..."
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Section: Pejabat & Pegawai */}
