@@ -333,14 +333,7 @@ export const SPPDList: React.FC = () => {
 
     // Add invitation as number 4 if it exists
     if (sppd.invitationFrom || sppd.invitationNumber || sppd.invitationSubject) {
-      const invitationParts = [];
-      if (sppd.invitationSubject) invitationParts.push(`Perihal ${sppd.invitationSubject}`);
-      if (sppd.invitationFrom) invitationParts.push(`dari ${sppd.invitationFrom}`);
-      if (sppd.invitationNumber) invitationParts.push(`dengan Nomor Surat ${sppd.invitationNumber}`);
-      
-      const invitationText = invitationParts.length > 0 
-        ? `${invitationParts.join(' ')}.`
-        : 'Kepentingan Dinas.';
+      const invitationText = `Undangan Surat dari ${sppd.invitationFrom || '.......'}, nomor : ${sppd.invitationNumber || '.......'}, Perihal : ${sppd.invitationSubject || '.......'};`;
 
       // Replace or insert at index 3 (item number 4)
       if (legalBasis.length >= 4) {
