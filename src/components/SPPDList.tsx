@@ -1066,7 +1066,7 @@ export const SPPDList: React.FC = () => {
       }
     });
 
-    let currentY = (doc as any).lastAutoTable.finalY + 10;
+    let currentY = (doc as any).lastAutoTable.finalY + 8;
     doc.setFont('helvetica', 'normal');
     doc.text('Pejabat Penandatangan Kontrak', 140, currentY);
     currentY += 20;
@@ -1076,11 +1076,12 @@ export const SPPDList: React.FC = () => {
     doc.text(`NIP. ${ppk?.nip || ''}`, 140, currentY + 5);
 
     // Separator
-    currentY += 15;
+    currentY += 10;
     doc.line(15, currentY, 195, currentY);
+    doc.line(15, currentY + 0.5, 195, currentY + 0.5);
 
     // Bottom Section: KWITANSI
-    currentY += 15;
+    currentY += 12;
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text('K W I T A N S I', 105, currentY, { align: 'center' });
@@ -1109,9 +1110,8 @@ export const SPPDList: React.FC = () => {
     const boxW = 140;
     const boxH = 8;
     doc.rect(boxX, boxY, boxW, boxH);
-    // Simple hatching simulation
     for (let i = 0; i < boxW; i += 2) {
-      doc.line(boxX + i, boxY, boxX + i + 2, boxY + boxH);
+      doc.line(boxX + i, boxY, boxX + i + 4, boxY + boxH);
     }
     
     doc.setFillColor(255, 255, 255);
@@ -1122,16 +1122,17 @@ export const SPPDList: React.FC = () => {
 
     currentY += 10;
     doc.text('Untuk pembayaran', 20, currentY);
-    doc.text(`: Biaya belanja BBM pada tgl ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })} ke ${sppd.destination}`, 50, currentY);
+    const paymentText = `: Biaya belanja BBM pada tgl ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })} ke ${sppd.destination}`;
+    doc.text(paymentText, 50, currentY);
     
     currentY += 7;
     const purposeLines = doc.splitTextToSize(sppd.purpose, 140);
     doc.text(purposeLines, 50, currentY);
-    currentY += (purposeLines.length * 5);
+    currentY += Math.max(5, (purposeLines.length * 5));
     
     doc.text(`Pada ${subActivity?.name || '-'}`, 50, currentY);
 
-    currentY += 15;
+    currentY += 12;
     doc.text('Mengetahui/Menyetujui', 50, currentY, { align: 'center' });
     doc.text(`Blora, ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })}`, 160, currentY, { align: 'center' });
     doc.text('PPKom', 50, currentY + 5, { align: 'center' });
@@ -1151,11 +1152,20 @@ export const SPPDList: React.FC = () => {
     doc.setFont('helvetica', 'bold');
     
     // Rp box with hatching
-    doc.rect(20, currentY - 8, 60, 12);
-    for (let i = 0; i < 10; i += 2) {
-      doc.line(20 + i, currentY - 8, 20 + i + 2, currentY + 4);
+    const rpBoxX = 20;
+    const rpBoxY = currentY - 8;
+    const rpBoxW = 60;
+    const rpBoxH = 12;
+    doc.rect(rpBoxX, rpBoxY, rpBoxW, rpBoxH);
+    for (let i = 0; i < rpBoxW; i += 2) {
+      doc.line(rpBoxX + i, rpBoxY, rpBoxX + i + 4, rpBoxY + rpBoxH);
     }
-    doc.text(`Rp. ${fuelAmount.toLocaleString('id-ID')} ,-`, 35, currentY);
+    
+    doc.setFillColor(255, 255, 255);
+    const amountText = `Rp. ${fuelAmount.toLocaleString('id-ID')} ,-`;
+    const amountWidth = doc.getTextWidth(amountText) + 6;
+    doc.rect(rpBoxX + (rpBoxW - amountWidth) / 2, rpBoxY + 1, amountWidth, rpBoxH - 2, 'F');
+    doc.text(amountText, rpBoxX + rpBoxW / 2, currentY, { align: 'center' });
   };
 
   const handlePreview = (sppd: SPPD) => {
@@ -1185,6 +1195,12 @@ export const SPPDList: React.FC = () => {
     // Kwitansi
     doc.addPage();
     renderKwitansiContent(doc, sppd);
+    
+    // Kwitansi BBM (if applicable)
+    if (sppd.fuelAmount && sppd.fuelAmount > 0) {
+      doc.addPage();
+      renderKwitansiBBMContent(doc, sppd);
+    }
 
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
