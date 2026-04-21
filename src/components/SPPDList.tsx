@@ -1125,37 +1125,45 @@ export const SPPDList: React.FC = () => {
     const paymentText = `: Biaya belanja BBM pada tgl ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })} ke ${sppd.destination}`;
     doc.text(paymentText, 50, currentY);
     
-    currentY += 7;
-    const purposeLines = doc.splitTextToSize(sppd.purpose, 140);
-    doc.text(purposeLines, 50, currentY);
+    currentY += 2;
+    doc.setDrawColor(0);
+    doc.line(15, currentY, 195, currentY);
+    
+    currentY += 6;
+    const purposeLines = doc.splitTextToSize(sppd.purpose, 175);
+    doc.text(purposeLines, 20, currentY);
     currentY += Math.max(5, (purposeLines.length * 5));
     
-    doc.text(`Pada ${subActivity?.name || '-'}`, 50, currentY);
+    doc.line(15, currentY, 195, currentY);
+    currentY += 6;
+    doc.text(`Pada Sub. Kegiatan : ${subActivity?.name || '-'}`, 20, currentY);
+    currentY += 2;
+    doc.line(15, currentY, 195, currentY);
 
     currentY += 12;
-    doc.text('Mengetahui/Menyetujui', 50, currentY, { align: 'center' });
-    doc.text(`Blora, ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })}`, 160, currentY, { align: 'center' });
-    doc.text('PPKom', 50, currentY + 5, { align: 'center' });
-    doc.text('Yang Menerima', 160, currentY + 5, { align: 'center' });
+    doc.text('Mengetahui/Menyetujui', 105, currentY, { align: 'center' });
+    doc.text(`Blora, ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })}`, 165, currentY, { align: 'center' });
+    doc.text('PPKom', 105, currentY + 5, { align: 'center' });
+    doc.text('Yang Menerima', 165, currentY + 5, { align: 'center' });
 
     currentY += 25;
     doc.setFont('helvetica', 'bold');
-    doc.text(ppk?.name || '', 50, currentY, { align: 'center' });
-    doc.text(employee?.name || '', 160, currentY, { align: 'center' });
+    doc.text(ppk?.name || '', 105, currentY, { align: 'center' });
+    doc.text(employee?.name || '', 165, currentY, { align: 'center' });
     
     doc.setFont('helvetica', 'normal');
-    doc.text(`NIP. ${ppk?.nip || ''}`, 50, currentY + 5, { align: 'center' });
-    doc.text(`NIP. ${employee?.nip || ''}`, 160, currentY + 5, { align: 'center' });
+    doc.text(`NIP. ${ppk?.nip || ''}`, 105, currentY + 5, { align: 'center' });
+    doc.text(`NIP. ${employee?.nip || ''}`, 165, currentY + 5, { align: 'center' });
 
-    currentY += 15;
-    doc.setFontSize(12);
+    // The Rp box should be aligned with the signatures to some extent or at the bottom left
+    const rpBoxY = currentY - 12; // Position it relative to the signature row
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     
     // Rp box with hatching
     const rpBoxX = 20;
-    const rpBoxY = currentY - 8;
-    const rpBoxW = 60;
-    const rpBoxH = 12;
+    const rpBoxW = 75;
+    const rpBoxH = 20;
     doc.rect(rpBoxX, rpBoxY, rpBoxW, rpBoxH);
     for (let i = 0; i < rpBoxW; i += 2) {
       doc.line(rpBoxX + i, rpBoxY, rpBoxX + i + 4, rpBoxY + rpBoxH);
@@ -1163,9 +1171,9 @@ export const SPPDList: React.FC = () => {
     
     doc.setFillColor(255, 255, 255);
     const amountText = `Rp. ${fuelAmount.toLocaleString('id-ID')} ,-`;
-    const amountWidth = doc.getTextWidth(amountText) + 6;
-    doc.rect(rpBoxX + (rpBoxW - amountWidth) / 2, rpBoxY + 1, amountWidth, rpBoxH - 2, 'F');
-    doc.text(amountText, rpBoxX + rpBoxW / 2, currentY, { align: 'center' });
+    const amountWidth = doc.getTextWidth(amountText) + 10;
+    doc.rect(rpBoxX + 2, rpBoxY + 2, amountWidth, rpBoxH - 4, 'F');
+    doc.text(amountText, rpBoxX + amountWidth/2 + 2, rpBoxY + rpBoxH/2 + 4, { align: 'center' });
   };
 
   const handlePreview = (sppd: SPPD) => {
