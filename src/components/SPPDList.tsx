@@ -1055,7 +1055,7 @@ export const SPPDList: React.FC = () => {
         [{ content: 'TOTAL', colSpan: 5, styles: { halign: 'center', fontStyle: 'bold' } }, { content: 'Rp. ' + fuelAmount.toLocaleString('id-ID'), styles: { fontStyle: 'bold' } }]
       ],
       theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.1 },
+      styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.1, textColor: [0, 0, 0] },
       headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
       columnStyles: {
         0: { halign: 'center', cellWidth: 10 },
@@ -1156,24 +1156,25 @@ export const SPPDList: React.FC = () => {
     doc.text(`NIP. ${employee?.nip || ''}`, 170, currentY + 5, { align: 'center' });
 
     // The Rp box should be aligned with the signatures to some extent or at the bottom left
-    const rpBoxY = currentY - 12; // Position it relative to the signature row
+    const amountText = `Rp. ${fuelAmount.toLocaleString('id-ID')} ,-`;
+    const amountWidth = doc.getTextWidth(amountText) + 8;
+    const rpBoxH = 14; 
+    const rpBoxW = amountWidth + 8;
+    const rpBoxX = 15;
+    const rpBoxY = currentY - 8; 
+    
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     
-    // Rp box with hatching
-    const rpBoxX = 15;
-    const rpBoxW = 65;
-    const rpBoxH = 20;
+    // hatching
     doc.rect(rpBoxX, rpBoxY, rpBoxW, rpBoxH);
     for (let i = 0; i < rpBoxW; i += 2) {
-      doc.line(rpBoxX + i, rpBoxY, rpBoxX + i + 4, rpBoxY + rpBoxH);
+      doc.line(rpBoxX + i, rpBoxY, rpBoxX + i + 2, rpBoxY + rpBoxH);
     }
     
     doc.setFillColor(255, 255, 255);
-    const amountText = `Rp. ${fuelAmount.toLocaleString('id-ID')} ,-`;
-    const amountWidth = doc.getTextWidth(amountText) + 10;
-    doc.rect(rpBoxX + 2, rpBoxY + 2, amountWidth, rpBoxH - 4, 'F');
-    doc.text(amountText, rpBoxX + amountWidth/2 + 2, rpBoxY + rpBoxH/2 + 4, { align: 'center' });
+    doc.rect(rpBoxX + 4, rpBoxY + 2, amountWidth, rpBoxH - 4, 'F');
+    doc.text(amountText, rpBoxX + 4 + amountWidth/2, rpBoxY + rpBoxH/2 + 1.5, { align: 'center' });
   };
 
   const handlePreview = (sppd: SPPD) => {
