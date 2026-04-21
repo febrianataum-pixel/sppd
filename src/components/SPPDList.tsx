@@ -1141,18 +1141,18 @@ export const SPPDList: React.FC = () => {
     doc.line(15, currentY, 195, currentY);
 
     currentY += 12;
-    doc.text('Mengetahui/Menyetujui', 115, currentY, { align: 'center' });
+    doc.text('Mengetahui/Menyetujui', 100, currentY, { align: 'center' });
     doc.text(`Blora, ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })}`, 170, currentY, { align: 'center' });
-    doc.text('PPKom', 115, currentY + 5, { align: 'center' });
+    doc.text('PPKom', 100, currentY + 5, { align: 'center' });
     doc.text('Yang Menerima', 170, currentY + 5, { align: 'center' });
 
     currentY += 25;
     doc.setFont('helvetica', 'bold');
-    doc.text(ppk?.name || '', 115, currentY, { align: 'center' });
+    doc.text(ppk?.name || '', 100, currentY, { align: 'center' });
     doc.text(employee?.name || '', 170, currentY, { align: 'center' });
     
     doc.setFont('helvetica', 'normal');
-    doc.text(`NIP. ${ppk?.nip || ''}`, 115, currentY + 5, { align: 'center' });
+    doc.text(`NIP. ${ppk?.nip || ''}`, 100, currentY + 5, { align: 'center' });
     doc.text(`NIP. ${employee?.nip || ''}`, 170, currentY + 5, { align: 'center' });
 
     // The Rp box should be aligned with the signatures to some extent or at the bottom left
