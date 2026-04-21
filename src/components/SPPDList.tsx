@@ -1202,8 +1202,10 @@ export const SPPDList: React.FC = () => {
     renderRincianBiayaContent(doc, sppd);
     
     // Kwitansi
-    doc.addPage();
-    renderKwitansiContent(doc, sppd);
+    if (!sppd.fuelAmount || sppd.fuelAmount === 0) {
+      doc.addPage();
+      renderKwitansiContent(doc, sppd);
+    }
     
     // Kwitansi BBM (if applicable)
     if (sppd.fuelAmount && sppd.fuelAmount > 0) {
