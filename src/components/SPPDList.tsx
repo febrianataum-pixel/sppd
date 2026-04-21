@@ -1141,19 +1141,19 @@ export const SPPDList: React.FC = () => {
     doc.line(15, currentY, 195, currentY);
 
     currentY += 12;
-    doc.text('Mengetahui/Menyetujui', 105, currentY, { align: 'center' });
-    doc.text(`Blora, ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })}`, 165, currentY, { align: 'center' });
-    doc.text('PPKom', 105, currentY + 5, { align: 'center' });
-    doc.text('Yang Menerima', 165, currentY + 5, { align: 'center' });
+    doc.text('Mengetahui/Menyetujui', 115, currentY, { align: 'center' });
+    doc.text(`Blora, ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })}`, 170, currentY, { align: 'center' });
+    doc.text('PPKom', 115, currentY + 5, { align: 'center' });
+    doc.text('Yang Menerima', 170, currentY + 5, { align: 'center' });
 
     currentY += 25;
     doc.setFont('helvetica', 'bold');
-    doc.text(ppk?.name || '', 105, currentY, { align: 'center' });
-    doc.text(employee?.name || '', 165, currentY, { align: 'center' });
+    doc.text(ppk?.name || '', 115, currentY, { align: 'center' });
+    doc.text(employee?.name || '', 170, currentY, { align: 'center' });
     
     doc.setFont('helvetica', 'normal');
-    doc.text(`NIP. ${ppk?.nip || ''}`, 105, currentY + 5, { align: 'center' });
-    doc.text(`NIP. ${employee?.nip || ''}`, 165, currentY + 5, { align: 'center' });
+    doc.text(`NIP. ${ppk?.nip || ''}`, 115, currentY + 5, { align: 'center' });
+    doc.text(`NIP. ${employee?.nip || ''}`, 170, currentY + 5, { align: 'center' });
 
     // The Rp box should be aligned with the signatures to some extent or at the bottom left
     const rpBoxY = currentY - 12; // Position it relative to the signature row
@@ -1161,8 +1161,8 @@ export const SPPDList: React.FC = () => {
     doc.setFont('helvetica', 'bold');
     
     // Rp box with hatching
-    const rpBoxX = 20;
-    const rpBoxW = 75;
+    const rpBoxX = 15;
+    const rpBoxW = 65;
     const rpBoxH = 20;
     doc.rect(rpBoxX, rpBoxY, rpBoxW, rpBoxH);
     for (let i = 0; i < rpBoxW; i += 2) {
