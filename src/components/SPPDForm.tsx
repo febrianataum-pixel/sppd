@@ -141,6 +141,12 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
     }
   }, [formData.departureDate, formData.returnDate]);
 
+  useEffect(() => {
+    if (formData.invitationSubject && formData.invitationSubject.trim() !== '') {
+      setFormData(prev => ({ ...prev, purpose: prev.invitationSubject }));
+    }
+  }, [formData.invitationSubject]);
+
   const handleAddFollower = () => {
     if ((formData.followers?.length || 0) >= 3) {
       alert('Maksimal 3 pengikut.');
@@ -504,9 +510,17 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
                         required
                         value={formData.purpose || ''}
                         onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                        readOnly={!!(formData.invitationSubject && formData.invitationSubject.trim() !== '')}
                         rows={3}
-                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all resize-none"
-                        placeholder="Masukkan maksud perjalanan dinas..."
+                        className={cn(
+                          "w-full px-4 py-3 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all resize-none",
+                          formData.invitationSubject && formData.invitationSubject.trim() !== '' 
+                            ? "bg-gray-100 text-gray-500 cursor-not-allowed font-medium" 
+                            : "bg-gray-50"
+                        )}
+                        placeholder={formData.invitationSubject && formData.invitationSubject.trim() !== '' 
+                          ? "Maksud perjalanan mengikuti perihal undangan..." 
+                          : "Masukkan maksud perjalanan dinas..."}
                       />
                     </div>
 

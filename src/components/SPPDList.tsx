@@ -178,13 +178,14 @@ export const SPPDList: React.FC = () => {
     doc.text(':', valueX - 2, startY);
     doc.text('Kepala Dinas Sosial PPPA Kabupaten Blora', valueX, startY);
 
-    const isKabidOrKasubag = employee?.jabatan.toLowerCase().includes('bidang') || 
-                            employee?.jabatan.toLowerCase().includes('kabid') ||
-                            employee?.jabatan.toLowerCase().includes('kasubag') ||
-                            employee?.jabatan.toLowerCase().includes('kepala sub bagian');
+    const jabatanLower = (employee?.jabatan || '').toLowerCase();
+    const isKabidOrKasubag = jabatanLower.includes('bidang') || 
+                            jabatanLower.includes('kabid') ||
+                            jabatanLower.includes('kasubag') ||
+                            jabatanLower.includes('kepala sub bagian');
     
     let currentY = startY;
-    if (isKabidOrKasubag) {
+    if (isKabidOrKasubag && !jabatanLower.includes('sekretaris')) {
       currentY += 7;
       doc.text('Lewat', labelX, currentY);
       doc.text(':', valueX - 2, currentY);
@@ -194,7 +195,15 @@ export const SPPDList: React.FC = () => {
     currentY += 7;
     doc.text('Dari', labelX, currentY);
     doc.text(':', valueX - 2, currentY);
-    doc.text(`${employee?.jabatan || '-'} Dinas Sosial PPPA Kabupaten Blora`, valueX, currentY);
+    
+    const senderTitle = employee?.jabatan || '-';
+    // If the title already seems to have the department info, don't append it
+    const hasDeptInfo = senderTitle.toLowerCase().includes('dinas sosial') || 
+                        senderTitle.toLowerCase().includes('p3a') || 
+                        senderTitle.toLowerCase().includes('pppa');
+    
+    const displaySender = hasDeptInfo ? senderTitle : `${senderTitle} Dinas Sosial PPPA Kabupaten Blora`;
+    doc.text(displaySender, valueX, currentY);
 
     currentY += 7;
     doc.text('Tanggal', labelX, currentY);
