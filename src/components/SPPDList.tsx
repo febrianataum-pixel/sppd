@@ -176,20 +176,32 @@ export const SPPDList: React.FC = () => {
     doc.setFont('helvetica', 'normal');
     doc.text('Kepada Yth.', labelX, startY);
     doc.text(':', valueX - 2, startY);
-    doc.text('Kepala Dinas Sosial PPPA Kabupaten Blora', valueX, startY);
 
     const jabatanLower = (employee?.jabatan || '').toLowerCase();
+    const isKadis = jabatanLower.includes('kepala dinas') && !jabatanLower.includes('sekretaris') && !jabatanLower.includes('bidang') && !jabatanLower.includes('kabid');
     const isKabidOrKasubag = jabatanLower.includes('bidang') || 
                             jabatanLower.includes('kabid') ||
                             jabatanLower.includes('kasubag') ||
                             jabatanLower.includes('kepala sub bagian');
     
     let currentY = startY;
-    if (isKabidOrKasubag && !jabatanLower.includes('sekretaris')) {
+    
+    if (isKadis) {
+      doc.text('Bupati', valueX, currentY);
       currentY += 7;
       doc.text('Lewat', labelX, currentY);
       doc.text(':', valueX - 2, currentY);
-      doc.text('Sekretaris Dinas Sosial PPPA Kabupaten Blora', valueX, currentY);
+      doc.text('1. Sekretaris Daerah', valueX, currentY);
+      currentY += 7;
+      doc.text('2. Asisten I Pemerintahan dan Kesra', valueX + 4, currentY);
+    } else {
+      doc.text('Kepala Dinas Sosial PPPA Kabupaten Blora', valueX, currentY);
+      if (isKabidOrKasubag && !jabatanLower.includes('sekretaris')) {
+        currentY += 7;
+        doc.text('Lewat', labelX, currentY);
+        doc.text(':', valueX - 2, currentY);
+        doc.text('Sekretaris Dinas Sosial PPPA Kabupaten Blora', valueX, currentY);
+      }
     }
 
     currentY += 7;
