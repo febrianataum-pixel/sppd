@@ -75,6 +75,7 @@ export interface SPPD {
   invitationFrom?: string;
   invitationNumber?: string;
   invitationSubject?: string;
+  invitationDate?: string;
 }
 
 export enum OperationType {

@@ -408,14 +408,25 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
                           />
                         </div>
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Perihal Undangan</label>
-                        <input
-                          value={formData.invitationSubject || ''}
-                          onChange={(e) => setFormData({ ...formData, invitationSubject: e.target.value })}
-                          className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                          placeholder="Contoh: Rapat Koordinasi..."
-                        />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Perihal Undangan</label>
+                          <input
+                            value={formData.invitationSubject || ''}
+                            onChange={(e) => setFormData({ ...formData, invitationSubject: e.target.value })}
+                            className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                            placeholder="Contoh: Rapat Koordinasi..."
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Tanggal Undangan</label>
+                          <input
+                            type="date"
+                            value={formData.invitationDate || ''}
+                            onChange={(e) => setFormData({ ...formData, invitationDate: e.target.value })}
+                            className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

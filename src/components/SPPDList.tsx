@@ -114,6 +114,191 @@ export const SPPDList: React.FC = () => {
     }
   };
 
+  const shouldShowNotaDinas = (employee?: Employee) => {
+    if (!employee) return false;
+    const jabatan = employee.jabatan.toLowerCase();
+    return jabatan.includes('kepala dinas') || 
+           jabatan.includes('sekretaris') || 
+           jabatan.includes('kepala bidang') || 
+           jabatan.includes('kabid') ||
+           jabatan.includes('kasubag') ||
+           jabatan.includes('kepala sub bagian');
+  };
+
+  const renderNotaDinasContent = (doc: jsPDF, sppd: SPPD) => {
+    const employee = employees[sppd.employeeId];
+    
+    doc.setTextColor(0, 0, 0);
+    const bodyFontSize = 10;
+
+    // Header (KOP)
+    const drawKop = (doc: jsPDF) => {
+      if (settings?.logo) {
+        try {
+          doc.addImage(settings.logo, 'PNG', 20, 10, 25, 25);
+        } catch (e) {
+          console.error("Error adding logo to PDF:", e);
+        }
+      }
+
+      doc.setFontSize(10);
+      doc.text('PEMERINTAH KABUPATEN BLORA', 115, 15, { align: 'center' });
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('DINAS SOSIAL PEMBERDAYAAN PEREMPUAN', 115, 21, { align: 'center' });
+      doc.text('DAN PERLINDUNGAN ANAK', 115, 27, { align: 'center' });
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Jl. Pemuda No. 16 A Blora 58215, No. Tlp: (0296) 5298541', 115, 32, { align: 'center' });
+      doc.text('Website : dinsos.blorakab.go.id / E-mail : dinsosp3a.bla.com', 115, 36, { align: 'center' });
+      doc.setLineWidth(0.5);
+      doc.line(20, 38, 190, 38);
+      doc.setLineWidth(0.2);
+      doc.line(20, 39, 190, 39);
+    };
+
+    drawKop(doc);
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('NOTA DINAS', 105, 50, { align: 'center' });
+    doc.setLineWidth(0.5);
+    const titleWidth = doc.getTextWidth('NOTA DINAS');
+    doc.line(105 - (titleWidth/2), 51, 105 + (titleWidth/2), 51);
+
+    doc.setFontSize(bodyFontSize);
+    
+    // Header Info Table
+    const startY = 60;
+    const labelX = 20;
+    const valueX = 45;
+    
+    doc.setFont('helvetica', 'normal');
+    doc.text('Kepada Yth.', labelX, startY);
+    doc.text(':', valueX - 2, startY);
+    doc.text('Kepala Dinas Sosial PPPA Kabupaten Blora', valueX, startY);
+
+    const isKabidOrKasubag = employee?.jabatan.toLowerCase().includes('bidang') || 
+                            employee?.jabatan.toLowerCase().includes('kabid') ||
+                            employee?.jabatan.toLowerCase().includes('kasubag') ||
+                            employee?.jabatan.toLowerCase().includes('kepala sub bagian');
+    
+    let currentY = startY;
+    if (isKabidOrKasubag) {
+      currentY += 7;
+      doc.text('Lewat', labelX, currentY);
+      doc.text(':', valueX - 2, currentY);
+      doc.text('Sekretaris Dinas Sosial PPPA Kabupaten Blora', valueX, currentY);
+    }
+
+    currentY += 7;
+    doc.text('Dari', labelX, currentY);
+    doc.text(':', valueX - 2, currentY);
+    doc.text(`${employee?.jabatan || '-'} Dinas Sosial PPPA Kabupaten Blora`, valueX, currentY);
+
+    currentY += 7;
+    doc.text('Tanggal', labelX, currentY);
+    doc.text(':', valueX - 2, currentY);
+    doc.text(format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id }), valueX, currentY);
+
+    currentY += 7;
+    doc.text('Perihal', labelX, currentY);
+    doc.text(':', valueX - 2, currentY);
+    const activityText = sppd.purpose;
+    const activityLines = doc.splitTextToSize(activityText, 145);
+    doc.text(activityLines, valueX, currentY);
+    
+    currentY += Math.max(7, activityLines.length * 5);
+    doc.setLineWidth(0.8);
+    doc.line(20, currentY, 190, currentY);
+    doc.setLineWidth(0.2);
+    doc.line(20, currentY + 0.8, 190, currentY + 0.8);
+
+    currentY += 10;
+    
+    // Section I
+    doc.setFont('helvetica', 'bold');
+    doc.text('I. Dasar Pelaksanaan', 40, currentY);
+    doc.setFont('helvetica', 'normal');
+    currentY += 7;
+    const dasarText = `Perjalanan dinas ini dilaksanakan berdasarkan ${sppd.invitationFrom || 'undangan'} nomor ${sppd.invitationNumber || '.......'}, yang dilaksanakan pada tanggal ${sppd.invitationDate ? format(new Date(sppd.invitationDate), 'dd MMMM yyyy', { locale: id }) : '.......'} di ${sppd.destination}.`;
+    const dasarLines = doc.splitTextToSize(dasarText, 150);
+    doc.text(dasarLines, 40, currentY);
+    
+    currentY += (dasarLines.length * 5) + 5;
+
+    // Section II
+    doc.setFont('helvetica', 'bold');
+    doc.text('II. MAKSUD DAN TUJUAN', 40, currentY);
+    doc.setFont('helvetica', 'normal');
+    currentY += 7;
+    const maksudText = `Maksud dan tujuan perjalanan dinas ini adalah untuk melaksanakan ${sppd.purpose} agar berjalan dengan baik, efektif, dan sesuai dengan ketentuan yang berlaku.`;
+    const maksudLines = doc.splitTextToSize(maksudText, 150);
+    doc.text(maksudLines, 40, currentY);
+    
+    currentY += (maksudLines.length * 5) + 5;
+
+    // Section III
+    doc.setFont('helvetica', 'bold');
+    doc.text('III. WAKTU DAN TEMPAT', 40, currentY);
+    doc.setFont('helvetica', 'normal');
+    currentY += 7;
+    doc.text('•  Waktu: ' + format(new Date(sppd.departureDate), 'EEEE, dd MMMM yyyy', { locale: id }), 45, currentY);
+    currentY += 5;
+    doc.text('•  Tempat: ' + sppd.destination, 45, currentY);
+
+    currentY += 10;
+
+    // Section IV
+    doc.setFont('helvetica', 'bold');
+    doc.text('IV. URAIAN KEGIATAN', 40, currentY);
+    doc.text('Rangkaian Kegiatan', 40, currentY + 7);
+    doc.setFont('helvetica', 'normal');
+    currentY += 14;
+    
+    if (sppd.reportResults && sppd.reportResults.length > 0) {
+      sppd.reportResults.forEach((res, i) => {
+        const resLines = doc.splitTextToSize(res, 145);
+        doc.text(`${i + 1}.`, 40, currentY);
+        doc.text(resLines, 45, currentY);
+        currentY += (resLines.length * 5) + 2;
+        
+        if (currentY > 260) {
+          doc.addPage();
+          currentY = 20;
+        }
+      });
+    } else {
+      doc.text('1. Telah dilaksanakan koordinasi/kegiatan sesuai dengan maksud perjalanan dinas.', 45, currentY);
+      currentY += 7;
+    }
+
+    currentY += 5;
+
+    // Section V
+    if (currentY > 250) { doc.addPage(); currentY = 20; }
+    doc.setFont('helvetica', 'bold');
+    doc.text('V. Penutup', 40, currentY);
+    doc.setFont('helvetica', 'normal');
+    currentY += 7;
+    const penutupText = "Demikian laporan perjalanan dinas luar daerah ini dibuat sebagai bentuk pertanggungjawaban pelaksanaan kegiatan. Atas perhatian dan kerjasamanya, disampaikan terima kasih.";
+    const penutupLines = doc.splitTextToSize(penutupText, 150);
+    doc.text(penutupLines, 40, currentY);
+
+    // Footer
+    currentY += 30;
+    if (currentY > 250) { doc.addPage(); currentY = 20; }
+    
+    const footerX = 130;
+    doc.setFont('helvetica', 'bold');
+    const jabFooterLines = doc.splitTextToSize(employee?.jabatan || '-', 60);
+    doc.text(jabFooterLines, footerX, currentY);
+    
+    doc.text(employee?.name || '-', footerX, currentY + 30);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`NIP. ${employee?.nip || '-'}`, footerX, currentY + 35);
+  };
+
   const renderSPDContent = (doc: jsPDF, sppd: SPPD) => {
     const employee = employees[sppd.employeeId];
     const ppk = employees[sppd.ppkId];
@@ -335,8 +520,9 @@ export const SPPDList: React.FC = () => {
         ];
 
     // Add invitation as number 4 if it exists
-    if (sppd.invitationFrom || sppd.invitationNumber || sppd.invitationSubject) {
-      const invitationText = `Undangan Surat dari ${sppd.invitationFrom || '.......'}, nomor : ${sppd.invitationNumber || '.......'}, Perihal : ${sppd.invitationSubject || '.......'};`;
+    if (sppd.invitationFrom || sppd.invitationNumber || sppd.invitationSubject || sppd.invitationDate) {
+      const dateStr = sppd.invitationDate ? format(new Date(sppd.invitationDate), 'dd MMMM yyyy', { locale: id }) : '.......';
+      const invitationText = `Undangan Surat dari ${sppd.invitationFrom || '.......'}, nomor : ${sppd.invitationNumber || '.......'}, Tanggal : ${dateStr}, Perihal : ${sppd.invitationSubject || '.......'};`;
 
       // Replace or insert at index 3 (item number 4)
       if (legalBasis.length >= 4) {
@@ -512,6 +698,12 @@ export const SPPDList: React.FC = () => {
     const doc = new jsPDF();
     renderSuratTugasContent(doc, sppd);
     doc.save(`Surat_Tugas_${(sppd.number || 'Draft').replace(/\//g, '_')}.pdf`);
+  };
+
+  const generateNotaDinas = (sppd: SPPD) => {
+    const doc = new jsPDF();
+    renderNotaDinasContent(doc, sppd);
+    doc.save(`Nota_Dinas_${(sppd.number || 'Draft').replace(/\//g, '_')}.pdf`);
   };
 
   const renderLaporanHasilContent = (doc: jsPDF, sppd: SPPD) => {
@@ -1182,6 +1374,13 @@ export const SPPDList: React.FC = () => {
 
   const handlePreview = (sppd: SPPD) => {
     const doc = new jsPDF();
+    const employee = employees[sppd.employeeId];
+    
+    // Nota Dinas (Optional based on position)
+    if (shouldShowNotaDinas(employee)) {
+      renderNotaDinasContent(doc, sppd);
+      doc.addPage();
+    }
     
     // SPD
     renderSPDContent(doc, sppd);
@@ -1551,6 +1750,21 @@ export const SPPDList: React.FC = () => {
               <div className="p-6 space-y-3">
                 <p className="text-sm text-gray-500 mb-4">Pilih jenis dokumen untuk SPPD nomor: <span className="font-bold text-gray-900">{sppdToDownload.number || '-'}</span></p>
                 
+                {shouldShowNotaDinas(employees[sppdToDownload.employeeId]) && (
+                  <button
+                    onClick={() => { generateNotaDinas(sppdToDownload); setDownloadModalOpen(false); }}
+                    className="w-full flex items-center gap-3 p-4 rounded-2xl border border-blue-200 bg-blue-50 hover:border-blue-300 hover:bg-blue-100 transition-all text-left group"
+                  >
+                    <div className="p-2 bg-white rounded-lg text-blue-600 shadow-sm transition-colors">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-gray-900 text-sm">Nota Dinas</p>
+                      <p className="text-xs text-gray-500">Usulan perjalanan dinas pejabat terkait</p>
+                    </div>
+                  </button>
+                )}
+
                 <button
                   onClick={() => { generatePDF(sppdToDownload); setDownloadModalOpen(false); }}
                   className="w-full flex items-center gap-3 p-4 rounded-2xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all text-left group"
