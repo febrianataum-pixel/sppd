@@ -692,15 +692,15 @@ export const SPPDList: React.FC = () => {
       footerY = 30;
     }
 
-    doc.text('Ditetapkan di', 120, footerY);
-    doc.text(':', 145, footerY);
-    doc.text('Blora', 150, footerY);
+    doc.text('Ditetapkan di', 110, footerY);
+    doc.text(':', 135, footerY);
+    doc.text('Blora', 140, footerY);
     
-    doc.text('Pada Tanggal', 120, footerY + 5);
-    doc.text(':', 145, footerY + 5);
-    doc.text(format(new Date(sppd.createdAt), 'dd MMMM yyyy', { locale: id }), 150, footerY + 5);
+    doc.text('Pada Tanggal', 110, footerY + 5);
+    doc.text(':', 135, footerY + 5);
+    doc.text(format(new Date(sppd.createdAt), 'dd MMMM yyyy', { locale: id }), 140, footerY + 5);
     
-    doc.line(120, footerY + 7, 190, footerY + 7);
+    doc.line(110, footerY + 7, 190, footerY + 7);
     
     doc.setFont('helvetica', 'normal');
     const deptNameLines = doc.splitTextToSize('KEPALA DINAS SOSIAL, PEMBERDAYAAN PEREMPUAN DAN PERLINDUNGAN ANAK KABUPATEN BLORA', 80);
@@ -709,7 +709,12 @@ export const SPPDList: React.FC = () => {
     // Signed by Kepala Dinas
     const signer = kepalaDinas || ppk;
     doc.setFont('helvetica', 'bold');
-    doc.text(signer?.name || '', 110, footerY + 45);
+    const signerName = signer?.name || '';
+    doc.text(signerName, 110, footerY + 45);
+    // Add underline to name
+    const nameWidth = doc.getTextWidth(signerName);
+    doc.line(110, footerY + 45.5, 110 + nameWidth, footerY + 45.5);
+    
     doc.setFont('helvetica', 'normal');
     doc.text(signer?.pangkat || '', 110, footerY + 50);
     doc.text(`NIP. ${signer?.nip || ''}`, 110, footerY + 55);
