@@ -702,17 +702,17 @@ export const SPPDList: React.FC = () => {
     
     doc.line(120, footerY + 7, 190, footerY + 7);
     
-    doc.setFont('helvetica', 'normal'); // Changed from bold to normal as per request
-    const deptNameLines = doc.splitTextToSize('KEPALA DINAS SOSIAL PEMBERDAYAAN PEREMPUAN DAN PERLINDUNGAN ANAK KABUPATEN BLORA', 70);
-    doc.text(deptNameLines, 155, footerY + 12, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    const deptNameLines = doc.splitTextToSize('KEPALA DINAS SOSIAL, PEMBERDAYAAN PEREMPUAN DAN PERLINDUNGAN ANAK KABUPATEN BLORA', 80);
+    doc.text(deptNameLines, 110, footerY + 12);
 
     // Signed by Kepala Dinas
     const signer = kepalaDinas || ppk;
-    doc.setFont('helvetica', 'bold'); // Name should be bold as per standard format
-    doc.text(signer?.name || '', 155, footerY + 45, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.text(signer?.name || '', 110, footerY + 45);
     doc.setFont('helvetica', 'normal');
-    doc.text(signer?.pangkat || '', 155, footerY + 50, { align: 'center' });
-    doc.text(`NIP : ${signer?.nip || ''}`, 155, footerY + 55, { align: 'center' });
+    doc.text(signer?.pangkat || '', 110, footerY + 50);
+    doc.text(`NIP. ${signer?.nip || ''}`, 110, footerY + 55);
   };
 
   const generateSuratTugas = (sppd: SPPD) => {
@@ -1013,9 +1013,15 @@ export const SPPDList: React.FC = () => {
     doc.text(format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id }), 65, 35);
 
     // Table Data
-    const travelCost = settings?.travelCosts.find(c => 
-      c.tingkat === sppd.tingkatBiaya && c.type === (sppd.travelType || 'Dalam Daerah')
-    );
+    const travelCost = settings?.travelCosts.find(c => {
+      const typeMatch = c.type === (sppd.travelType || 'Dalam Daerah');
+      const tingkatMatch = c.tingkat === sppd.tingkatBiaya;
+      if (!typeMatch || !tingkatMatch) return false;
+      if (c.type === 'Luar Daerah' && c.destination) {
+        return sppd.destination.toLowerCase().includes(c.destination.toLowerCase());
+      }
+      return true;
+    });
     const dailyAllowance = travelCost?.amount || 430000;
     
     const tableBody = [];
@@ -1033,9 +1039,15 @@ export const SPPDList: React.FC = () => {
 
     // Followers
     sppd.followers?.forEach((f, idx) => {
-      const fTravelCost = settings?.travelCosts.find(c => 
-        c.tingkat === f.tingkat && c.type === (sppd.travelType || 'Dalam Daerah')
-      );
+      const fTravelCost = settings?.travelCosts.find(c => {
+        const typeMatch = c.type === (sppd.travelType || 'Dalam Daerah');
+        const tingkatMatch = c.tingkat === f.tingkat;
+        if (!typeMatch || !tingkatMatch) return false;
+        if (c.type === 'Luar Daerah' && c.destination) {
+          return sppd.destination.toLowerCase().includes(c.destination.toLowerCase());
+        }
+        return true;
+      });
       const fDailyAllowance = fTravelCost?.amount || 430000;
       tableBody.push([
         (idx + 2).toString(),
@@ -1140,9 +1152,15 @@ export const SPPDList: React.FC = () => {
     doc.setTextColor(0, 0, 0);
     
     // Calculate total amount
-    const travelCost = settings?.travelCosts.find(c => 
-      c.tingkat === sppd.tingkatBiaya && c.type === (sppd.travelType || 'Dalam Daerah')
-    );
+    const travelCost = settings?.travelCosts.find(c => {
+      const typeMatch = c.type === (sppd.travelType || 'Dalam Daerah');
+      const tingkatMatch = c.tingkat === sppd.tingkatBiaya;
+      if (!typeMatch || !tingkatMatch) return false;
+      if (c.type === 'Luar Daerah' && c.destination) {
+        return sppd.destination.toLowerCase().includes(c.destination.toLowerCase());
+      }
+      return true;
+    });
     const dailyAllowance = travelCost?.amount || 430000;
     const transportCost = 150000;
     const totalAmount = (dailyAllowance * sppd.duration) + transportCost;

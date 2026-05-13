@@ -1,6 +1,7 @@
 export interface TravelCost {
   tingkat: string;
   type: 'Dalam Daerah' | 'Luar Daerah';
+  destination?: string;
   amount: number;
 }
 

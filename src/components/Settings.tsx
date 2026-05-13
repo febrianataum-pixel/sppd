@@ -93,7 +93,7 @@ const Settings: React.FC = () => {
   };
 
   const addTravelCost = () => {
-    const newCosts = [...settings.travelCosts, { tingkat: '', type: 'Dalam Daerah', amount: 0 }];
+    const newCosts = [...settings.travelCosts, { tingkat: '', type: 'Dalam Daerah', destination: '', amount: 0 }];
     saveSettings({ ...settings, travelCosts: newCosts as TravelCost[] });
   };
 
@@ -320,7 +320,7 @@ const Settings: React.FC = () => {
                   </div>
                   <div className="space-y-4">
                     {settings.travelCosts.map((cost, idx) => (
-                      <div key={idx} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-2xl relative group">
+                      <div key={idx} className={`grid grid-cols-1 ${cost.type === 'Luar Daerah' ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-4 p-4 bg-gray-50 rounded-2xl relative group`}>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tingkat</label>
                           <input
@@ -341,6 +341,17 @@ const Settings: React.FC = () => {
                             <option value="Luar Daerah">Luar Daerah</option>
                           </select>
                         </div>
+                        {cost.type === 'Luar Daerah' && (
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tujuan / Lokasi</label>
+                            <input
+                              value={cost.destination || ''}
+                              onChange={(e) => updateTravelCost(idx, 'destination', e.target.value)}
+                              placeholder="Yogyakarta, Jakarta..."
+                              className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                            />
+                          </div>
+                        )}
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Nominal (Rp)</label>
                           <input
