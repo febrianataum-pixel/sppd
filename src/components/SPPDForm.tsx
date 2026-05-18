@@ -41,6 +41,7 @@ interface SPPDFormProps {
 export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [activities, setActivities] = useState<SubActivity[]>([]);
+  const [allSppd, setAllSppd] = useState<SPPD[]>([]);
   const [isLoading, setLoading] = useState(false);
   const [isFetching, setFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +79,10 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
 
     const unsubActivities = onSnapshot(collection(db, 'sub_activities'), (snapshot) => {
       setActivities(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubActivity)));
+    });
+
+    const unsubSppd = onSnapshot(collection(db, 'sppd'), (snapshot) => {
+      setAllSppd(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SPPD)));
     });
 
     if (sppdId) {
@@ -127,6 +132,7 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
     return () => {
       unsubEmployees();
       unsubActivities();
+      unsubSppd();
     };
   }, [isOpen, sppdId]);
 
@@ -248,6 +254,43 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
       setError('Semua baris pengikut harus memilih karyawan.');
       setLoading(false);
       return;
+    }
+
+    // Overlap & Person Duplication Check
+    const currentPrimaryEmp = employees.find(e => e.id === formData.employeeId);
+    const currentFollowerNips = (formData.followers || []).map(f => f.nip);
+    const allNipsInCurrent = [currentPrimaryEmp?.nip, ...currentFollowerNips].filter(Boolean) as string[];
+
+    const overlappingSppds = allSppd.filter(s => {
+      // Ignore current SPPD being edited
+      if (sppdId === s.id) return false;
+      
+      // Date overlap check: (newStart <= existingEnd) && (newEnd >= existingStart)
+      return (formData.departureDate! <= s.returnDate && formData.returnDate! >= s.departureDate);
+    });
+
+    const conflicts: string[] = [];
+    overlappingSppds.forEach(s => {
+      const existingPrimaryEmp = employees.find(e => e.id === s.employeeId);
+      const existingFollowerNips = (s.followers || []).map(f => f.nip);
+      const allNipsInExisting = [existingPrimaryEmp?.nip, ...existingFollowerNips].filter(Boolean) as string[];
+
+      const conflictingNips = allNipsInCurrent.filter(nip => allNipsInExisting.includes(nip));
+      if (conflictingNips.length > 0) {
+        conflictingNips.forEach(nip => {
+          const empName = employees.find(e => e.nip === nip)?.name || nip;
+          conflicts.push(`- ${empName} sudah terdaftar pada SPPD "${s.purpose}" ke ${s.destination} (${s.departureDate} s/d ${s.returnDate})`);
+        });
+      }
+    });
+
+    if (conflicts.length > 0) {
+      const uniqueConflicts = Array.from(new Set(conflicts));
+      const message = `Peringatan: Terdapat potensi duplikasi perjalanan pada tanggal yang sama:\n\n${uniqueConflicts.join('\n')}\n\nTetap simpan data ini?`;
+      if (!window.confirm(message)) {
+        setLoading(false);
+        return;
+      }
     }
 
     const fullNumber = sppdNumber.includes('/') ? sppdNumber : `000.1.2.3 / ${sppdNumber} / ${sppdYear}`;
@@ -723,14 +766,14 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
 
                   {/* Section: Other Notes */}
                   <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Keterangan Lain-lain</label>
-                    <textarea
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Tanggal Penetapan Surat Tugas</label>
+                    <input
+                      type="date"
                       value={formData.otherNotes || ''}
                       onChange={(e) => setFormData({ ...formData, otherNotes: e.target.value })}
-                      rows={2}
-                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all resize-none"
-                      placeholder="Keterangan tambahan jika ada..."
+                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium"
                     />
+                    <p className="text-[10px] text-gray-400 ml-1">Tanggal ini akan digunakan sebagai tanggal penetapan pada dokumen Surat Tugas dan SPD.</p>
                   </div>
                 </form>
               )}

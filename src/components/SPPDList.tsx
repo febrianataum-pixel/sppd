@@ -440,7 +440,7 @@ export const SPPDList: React.FC = () => {
     const budgetData = [
       ['8.', 'Pembebanan Anggaran', ''],
       ['', '- Kegiatan', activity?.name || '-'],
-      ['9.', 'Keterangan lain - lain', sppd.otherNotes || '-'],
+      ['9.', 'Keterangan lain - lain', sppd.otherNotes ? format(new Date(sppd.otherNotes), 'dd MMMM yyyy', { locale: id }) : '-'],
     ];
 
     autoTable(doc, {
@@ -458,7 +458,8 @@ export const SPPDList: React.FC = () => {
     const finalY = (doc as any).lastAutoTable.finalY + 5;
     doc.setFontSize(bodyFontSize);
     doc.text('Dikeluarkan di : Blora', 130, finalY);
-    doc.text(`Pada Tanggal : ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })}`, 130, finalY + 5);
+    const enactmentDate = sppd.otherNotes ? format(new Date(sppd.otherNotes), 'dd MMMM yyyy', { locale: id }) : format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id });
+    doc.text(`Pada Tanggal : ${enactmentDate}`, 130, finalY + 5);
 
     doc.text('PELAKSANA PERJALANAN DINAS', 30, finalY + 12);
     doc.text('PEJABAT PEMBUAT KOMITMEN', 130, finalY + 12);
@@ -698,7 +699,8 @@ export const SPPDList: React.FC = () => {
     
     doc.text('Pada Tanggal', 110, footerY + 5);
     doc.text(':', 135, footerY + 5);
-    doc.text(format(new Date(sppd.createdAt), 'dd MMMM yyyy', { locale: id }), 140, footerY + 5);
+    const enactmentDateStr = sppd.otherNotes ? format(new Date(sppd.otherNotes), 'dd MMMM yyyy', { locale: id }) : format(new Date(sppd.createdAt), 'dd MMMM yyyy', { locale: id });
+    doc.text(enactmentDateStr, 140, footerY + 5);
     
     doc.line(110, footerY + 7, 190, footerY + 7);
     
