@@ -1275,22 +1275,29 @@ export const SPPDList: React.FC = () => {
 
     doc.setTextColor(0, 0, 0);
     
+    // Outer border for the page (as seen in screenshot)
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.5);
+    doc.rect(10, 10, 190, 277);
+    doc.setLineWidth(0.1);
+
     // Top Section: PENGESAHAN KUITANSI
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('PENGESAHAN KUITANSI ATAU BUKTI PEMBELIAN/PEMBAYARAN', 105, 15, { align: 'center' });
-    doc.line(15, 17, 195, 17);
+    doc.text('PENGESAHAN KUITANSI ATAU BUKTI PEMBELIAN/PEMBAYARAN', 105, 20, { align: 'center' });
+    doc.line(15, 22, 195, 22);
 
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text('1. Berdasarkan bukti pembelian/kuitansi tersebut dibawah ini telah dilakukan:', 20, 25);
-    const wrapText = doc.splitTextToSize('serah terima hasil pekerjaan 100% (seratus persen) dari pihak Penyedia barang/jasa kepada Pengguna Barang/Kuasa Pengguna Barang;', 170);
-    doc.text(wrapText, 25, 30);
-    doc.text('2. pemeriksaan administratif oleh pejabat pemeriksa hasil pekerjaan;', 20, 30 + (wrapText.length * 5));
+    doc.text('1.', 20, 30);
+    doc.text('Berdasarkan bukti pembelian/kuitansi tersebut dibawah ini telah dilakukan:', 25, 30);
+    doc.text('serah terima hasil pekerjaan 100% (seratus persen) dari pihak Penyedia barang/jasa kepada Pengguna Barang/Kuasa Pengguna Barang;', 25, 35);
+    doc.text('2.', 20, 40);
+    doc.text('pemeriksaan administratif oleh pejabat pemeriksa hasil pekerjaan;', 25, 40);
 
     autoTable(doc, {
-      startY: 35 + (wrapText.length * 5),
-      head: [['NO', 'URAIAN PEKERJAAN', 'JUMLAH', 'SATUAN UKURAN', 'HARGA SATUAN', 'JUMLAH']],
+      startY: 45,
+      head: [['NO', 'URAIAN PEKERJAAN', 'JUMLAH', 'SATUAN\nUKURAN', 'HARGA\nSATUAN', 'JUMLAH']],
       body: [
         ['1', 'Belanja Bahan-bahan Bakar dan Pelumas', '', '', '', ''],
         ['', `BBM ${sppd.fuelType || '-'}`, quantity, 'Lt', 'Rp. ' + pricePerLiter.toLocaleString('id-ID'), 'Rp. ' + fuelAmount.toLocaleString('id-ID')],
@@ -1298,10 +1305,11 @@ export const SPPDList: React.FC = () => {
         [{ content: 'TOTAL', colSpan: 5, styles: { halign: 'center', fontStyle: 'bold' } }, { content: 'Rp. ' + fuelAmount.toLocaleString('id-ID'), styles: { fontStyle: 'bold' } }]
       ],
       theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.1, textColor: [0, 0, 0] },
-      headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
+      styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.1, textColor: [0, 0, 0], font: 'helvetica' },
+      headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center', valign: 'middle' },
       columnStyles: {
         0: { halign: 'center', cellWidth: 10 },
+        1: { cellWidth: 60 },
         2: { halign: 'center' },
         3: { halign: 'center' },
         4: { halign: 'right' },
@@ -1312,19 +1320,21 @@ export const SPPDList: React.FC = () => {
     let currentY = (doc as any).lastAutoTable.finalY + 8;
     doc.setFont('helvetica', 'normal');
     doc.text('Pejabat Penandatangan Kontrak', 140, currentY);
-    currentY += 20;
+    currentY += 25;
     doc.setFont('helvetica', 'bold');
     doc.text(ppk?.name || '', 140, currentY);
+    doc.line(140, currentY + 0.5, 140 + doc.getTextWidth(ppk?.name || ''), currentY + 0.5);
     doc.setFont('helvetica', 'normal');
     doc.text(`NIP. ${ppk?.nip || ''}`, 140, currentY + 5);
 
-    // Separator
-    currentY += 10;
-    doc.line(15, currentY, 195, currentY);
-    doc.line(15, currentY + 0.5, 195, currentY + 0.5);
+    // Separator line as in screenshot
+    currentY += 12;
+    doc.setLineWidth(0.5);
+    doc.line(10, currentY, 200, currentY);
+    doc.setLineWidth(0.1);
 
     // Bottom Section: KWITANSI
-    currentY += 12;
+    currentY += 8;
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text('K W I T A N S I', 105, currentY, { align: 'center' });
@@ -1345,51 +1355,53 @@ export const SPPDList: React.FC = () => {
     currentY += 10;
     doc.text('Uang sejumlah', 20, currentY);
     doc.text(':', 50, currentY);
-    doc.setFont('helvetica', 'bolditalic');
     
-    // Draw hatching box for amount in words
+    // Hatching box for amount in words
     const boxX = 55;
-    const boxY = currentY - 5;
+    const boxY = currentY - 6;
     const boxW = 140;
-    const boxH = 8;
-    doc.rect(boxX, boxY, boxW, boxH);
-    for (let i = 0; i < boxW; i += 2) {
-      doc.line(boxX + i, boxY, boxX + i + 4, boxY + boxH);
+    const boxH = 10;
+    
+    // Drawing hatching background
+    doc.setDrawColor(0);
+    for (let i = 0; i < boxW + boxH; i += 2) {
+      doc.line(boxX + i, boxY, boxX + i - boxH, boxY + boxH);
     }
     
+    // White overlay for text
+    doc.setFont('helvetica', 'bolditalic');
+    const displayTerbilang = `[ ${terbilang(fuelAmount).toUpperCase()} RUPIAH ]`;
+    const textWidth = doc.getTextWidth(displayTerbilang) + 4;
     doc.setFillColor(255, 255, 255);
-    const textWidth = doc.getTextWidth(`[ ${terbilang(fuelAmount).toUpperCase()} RUPIAH ]`) + 10;
     doc.rect(boxX + (boxW - textWidth) / 2, boxY + 1, textWidth, boxH - 2, 'F');
-    doc.text(`[ ${terbilang(fuelAmount).toUpperCase()} RUPIAH ]`, 125, currentY, { align: 'center' });
+    doc.text(displayTerbilang, 125, currentY + 1, { align: 'center' });
     doc.setFont('helvetica', 'normal');
 
     currentY += 10;
     doc.text('Untuk pembayaran', 20, currentY);
-    const paymentText = `: Biaya belanja BBM pada tgl ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })} ke ${sppd.destination}`;
+    const dateStr = sppd.departureDate ? format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id }) : '-';
+    const paymentText = `: Biaya belanja BBM pada tgl ${dateStr} ke ${sppd.destination}`;
     doc.text(paymentText, 50, currentY);
+    doc.line(50, currentY + 1, 195, currentY + 1);
     
-    currentY += 2;
-    doc.setDrawColor(0);
-    doc.line(15, currentY, 195, currentY);
-    
-    currentY += 6;
+    currentY += 8;
     const purposeLines = doc.splitTextToSize(sppd.purpose, 175);
-    doc.text(purposeLines, 20, currentY);
-    currentY += Math.max(5, (purposeLines.length * 5));
-    
+    doc.text(purposeLines, 15, currentY);
+    currentY += Math.max(8, (purposeLines.length * 5));
     doc.line(15, currentY, 195, currentY);
-    currentY += 6;
-    doc.text(`Pada Sub. Kegiatan : ${subActivity?.name || '-'}`, 20, currentY);
-    currentY += 2;
+
+    currentY += 7;
+    doc.text(`Pada {sub.kegiatan} ${subActivity?.name || '-'}`, 15, currentY);
+    currentY += 1;
     doc.line(15, currentY, 195, currentY);
 
     currentY += 12;
     doc.text('Mengetahui/Menyetujui', 100, currentY, { align: 'center' });
-    doc.text(`Blora, ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })}`, 170, currentY, { align: 'center' });
+    doc.text(`Blora, ${dateStr}`, 170, currentY, { align: 'center' });
     doc.text('PPKom', 100, currentY + 5, { align: 'center' });
     doc.text('Yang Menerima', 170, currentY + 5, { align: 'center' });
 
-    currentY += 25;
+    currentY += 28;
     doc.setFont('helvetica', 'bold');
     doc.text(ppk?.name || '', 100, currentY, { align: 'center' });
     doc.text(employee?.name || '', 170, currentY, { align: 'center' });
@@ -1398,26 +1410,28 @@ export const SPPDList: React.FC = () => {
     doc.text(`NIP. ${ppk?.nip || ''}`, 100, currentY + 5, { align: 'center' });
     doc.text(`NIP. ${employee?.nip || ''}`, 170, currentY + 5, { align: 'center' });
 
-    // The Rp box should be aligned with the signatures to some extent or at the bottom left
-    const amountText = `Rp. ${fuelAmount.toLocaleString('id-ID')} ,-`;
-    const amountWidth = doc.getTextWidth(amountText) + 8;
-    const rpBoxH = 14; 
-    const rpBoxW = amountWidth + 8;
-    const rpBoxX = 15;
-    const rpBoxY = currentY - 8; 
-    
+    // The Rp box at the bottom left
+    const amountText = `${fuelAmount.toLocaleString('id-ID')} ,-`;
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     
-    // hatching
-    doc.rect(rpBoxX, rpBoxY, rpBoxW, rpBoxH);
-    for (let i = 0; i < rpBoxW; i += 2) {
-      doc.line(rpBoxX + i, rpBoxY, rpBoxX + i + 2, rpBoxY + rpBoxH);
+    const rpBoxX = 15;
+    const rpBoxY = currentY - 10;
+    const rpBoxW = 60;
+    const rpBoxH = 15;
+    
+    // Hatching for Rp box
+    doc.setDrawColor(0);
+    for (let i = 0; i < rpBoxW + rpBoxH; i += 2) {
+      doc.line(rpBoxX + i, rpBoxY, rpBoxX + i - rpBoxH, rpBoxY + rpBoxH);
     }
     
     doc.setFillColor(255, 255, 255);
-    doc.rect(rpBoxX + 4, rpBoxY + 2, amountWidth, rpBoxH - 4, 'F');
-    doc.text(amountText, rpBoxX + 4 + amountWidth/2, rpBoxY + rpBoxH/2 + 1.5, { align: 'center' });
+    doc.rect(rpBoxX, rpBoxY + 1.5, rpBoxW, rpBoxH - 3, 'F');
+    doc.rect(rpBoxX, rpBoxY + 1.5, rpBoxW, rpBoxH - 3, 'D'); // Border for the white box
+    
+    doc.text('Rp.', rpBoxX + 5, rpBoxY + 10);
+    doc.text(amountText, rpBoxX + 15, rpBoxY + 10);
   };
 
   const handlePreview = (sppd: SPPD) => {
