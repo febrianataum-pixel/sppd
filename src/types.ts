@@ -46,6 +46,7 @@ export interface SPPD {
   id?: string;
   number?: string;
   ppkId: string;
+  pptkId?: string;
   employeeId: string;
   tingkatBiaya: string;
   purpose: string;

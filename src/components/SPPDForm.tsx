@@ -331,6 +331,15 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
       data: emp
     }));
 
+  const pptkOptions = employees
+    .filter(e => e.jabatanSppd?.includes('PPTK'))
+    .map(emp => ({
+      id: emp.id!,
+      label: emp.name,
+      sublabel: emp.nip,
+      data: emp
+    }));
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -489,7 +498,16 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
                       <h3 className="font-bold text-gray-900">Pejabat & Pelaksana</h3>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Pejabat PPTK</label>
+                        <SearchableSelect
+                          options={pptkOptions}
+                          value={formData.pptkId || ''}
+                          onChange={(val) => setFormData({ ...formData, pptkId: val })}
+                          placeholder="Pilih PPTK..."
+                        />
+                      </div>
                       <div className="space-y-1.5">
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Pejabat Pembuat Komitmen (PPK)</label>
                         <SearchableSelect

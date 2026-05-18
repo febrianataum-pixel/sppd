@@ -433,6 +433,7 @@ export const EmployeeList: React.FC = () => {
                       <option value="Bendahara Pengeluaran Pembantu Sekretariat">Bendahara Pengeluaran Pembantu Sekretariat</option>
                       <option value="Bendahara Pengeluaran Pembantu Bidang Sosial">Bendahara Pengeluaran Pembantu Bidang Sosial</option>
                       <option value="Bendahara Pengeluaran Pembantu Bidang PPPA">Bendahara Pengeluaran Pembantu Bidang PPPA</option>
+                      <option value="PPTK (Pejabat Pelaksana Teknis Kegiatan)">PPTK (Pejabat Pelaksana Teknis Kegiatan)</option>
                     </select>
                   </div>
                 </div>
