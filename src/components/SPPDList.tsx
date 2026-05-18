@@ -1300,12 +1300,16 @@ export const SPPDList: React.FC = () => {
     doc.setFont('helvetica', 'normal');
     doc.text('1.', 20, 30);
     doc.text('Berdasarkan bukti pembelian/kuitansi tersebut dibawah ini telah dilakukan:', 25, 30);
-    doc.text('serah terima hasil pekerjaan 100% (seratus persen) dari pihak Penyedia barang/jasa kepada Pengguna Barang/Kuasa Pengguna Barang;', 25, 35);
-    doc.text('2.', 20, 40);
-    doc.text('pemeriksaan administratif oleh pejabat pemeriksa hasil pekerjaan;', 25, 40);
+    const workReceiptText = 'serah terima hasil pekerjaan 100% (seratus persen) dari pihak Penyedia barang/jasa kepada Pengguna Barang/Kuasa Pengguna Barang;';
+    const wrappedWorkReceipt = doc.splitTextToSize(workReceiptText, 170);
+    doc.text(wrappedWorkReceipt, 25, 35);
+    
+    let currentYHeader = 35 + (wrappedWorkReceipt.length * 4);
+    doc.text('2.', 20, currentYHeader);
+    doc.text('pemeriksaan administratif oleh pejabat pemeriksa hasil pekerjaan;', 25, currentYHeader);
 
     autoTable(doc, {
-      startY: 45,
+      startY: currentYHeader + 5,
       head: [['NO', 'URAIAN PEKERJAAN', 'JUMLAH', 'SATUAN\nUKURAN', 'HARGA\nSATUAN', 'JUMLAH']],
       body: [
         ['1', 'Belanja Bahan-bahan Bakar dan Pelumas', '', '', '', ''],
@@ -1358,10 +1362,12 @@ export const SPPDList: React.FC = () => {
     const bendaharaText = sppd.bidang 
       ? `BENDAHARA PENGELUARAN PEMBANTU ${sppd.bidang.toUpperCase()}`
       : 'BENDAHARA PENGELUARAN';
+    const telatTerimaText = `: ${bendaharaText} DINSOS PPPA KAB. BLORA`;
+    const wrappedTelahTerima = doc.splitTextToSize(telatTerimaText, 145);
     doc.text('Telah terima dari', 20, currentY);
-    doc.text(`: ${bendaharaText} DINSOS PPPA KAB. BLORA`, 50, currentY);
+    doc.text(wrappedTelahTerima, 50, currentY);
 
-    currentY += 10;
+    currentY += (wrappedTelahTerima.length * 5) + 2;
     doc.text('Uang sejumlah', 20, currentY);
     doc.text(':', 50, currentY);
     
@@ -1389,19 +1395,23 @@ export const SPPDList: React.FC = () => {
     currentY += 10;
     doc.text('Untuk pembayaran', 20, currentY);
     const dateStr = sppd.departureDate ? format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id }) : '-';
-    const paymentText = `: Biaya belanja BBM pada tgl ${dateStr} ke ${sppd.destination}`;
-    doc.text(paymentText, 50, currentY);
-    doc.line(50, currentY + 1, 195, currentY + 1);
+    const paymentTextValue = `: Biaya belanja BBM pada tgl ${dateStr} ke ${sppd.destination}`;
+    const wrappedPayment = doc.splitTextToSize(paymentTextValue, 145);
+    doc.text(wrappedPayment, 50, currentY);
+    const lineY = currentY + (wrappedPayment.length * 4.5);
+    doc.line(50, lineY, 195, lineY);
     
-    currentY += 8;
+    currentY = lineY + 6;
     const purposeLines = doc.splitTextToSize(sppd.purpose, 175);
     doc.text(purposeLines, 15, currentY);
     currentY += Math.max(8, (purposeLines.length * 5));
     doc.line(15, currentY, 195, currentY);
 
     currentY += 7;
-    doc.text(`Pada {sub.kegiatan} ${subActivity?.name || '-'}`, 15, currentY);
-    currentY += 1;
+    const subActivityText = `Pada Sub Kegiatan : ${subActivity?.name || '-'}`;
+    const wrappedSubActivityText = doc.splitTextToSize(subActivityText, 180);
+    doc.text(wrappedSubActivityText, 15, currentY);
+    currentY += (wrappedSubActivityText.length * 4.5) + 1;
     doc.line(15, currentY, 195, currentY);
 
     currentY += 12;
