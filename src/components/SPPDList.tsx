@@ -1237,22 +1237,19 @@ export const SPPDList: React.FC = () => {
     doc.text(`Pada ${subActivity?.name || '-'}`, 50, currentY);
 
     currentY += 15;
-    doc.text('Mengetahui/Menyetujui', 35, currentY, { align: 'center' });
-    doc.text(`Blora, ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })}`, 175, currentY, { align: 'center' });
-    doc.text('PPTK', 35, currentY + 5, { align: 'center' });
-    doc.text('PPKom', 105, currentY + 5, { align: 'center' });
-    doc.text('Yang Menerima', 175, currentY + 5, { align: 'center' });
+    doc.text('Mengetahui/Menyetujui', 100, currentY, { align: 'center' });
+    doc.text(`Blora, ${format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id })}`, 170, currentY, { align: 'center' });
+    doc.text('PPKom', 100, currentY + 5, { align: 'center' });
+    doc.text('Yang Menerima', 170, currentY + 5, { align: 'center' });
 
     currentY += 25;
     doc.setFont('helvetica', 'bold');
-    doc.text(pptk?.name || '', 35, currentY, { align: 'center' });
-    doc.text(ppk?.name || '', 105, currentY, { align: 'center' });
-    doc.text(sppd.recipientName || employee?.name || '', 175, currentY, { align: 'center' });
+    doc.text(ppk?.name || '', 100, currentY, { align: 'center' });
+    doc.text(sppd.recipientName || employee?.name || '', 170, currentY, { align: 'center' });
     
     doc.setFont('helvetica', 'normal');
-    doc.text(`NIP. ${pptk?.nip || ''}`, 35, currentY + 5, { align: 'center' });
-    doc.text(`NIP. ${ppk?.nip || ''}`, 105, currentY + 5, { align: 'center' });
-    doc.text(`NIP. ${sppd.recipientNip || employee?.nip || ''}`, 175, currentY + 5, { align: 'center' });
+    doc.text(`NIP. ${ppk?.nip || ''}`, 100, currentY + 5, { align: 'center' });
+    doc.text(`NIP. ${sppd.recipientNip || employee?.nip || ''}`, 170, currentY + 5, { align: 'center' });
 
     currentY += 15;
     doc.setFontSize(12);
@@ -1428,22 +1425,19 @@ export const SPPDList: React.FC = () => {
     doc.line(15, currentY, 195, currentY);
 
     currentY += 12;
-    doc.text('Mengetahui/Menyetujui', 35, currentY, { align: 'center' });
-    doc.text(`Blora, ${dateStr}`, 175, currentY, { align: 'center' });
-    doc.text('Pejabat Pelaksana Teknis Kegiatan', 35, currentY + 5, { align: 'center' });
-    doc.text('PPKom', 105, currentY + 5, { align: 'center' });
-    doc.text('Yang Menerima', 175, currentY + 5, { align: 'center' });
+    doc.text('Mengetahui/Menyetujui', 100, currentY, { align: 'center' });
+    doc.text(`Blora, ${dateStr}`, 170, currentY, { align: 'center' });
+    doc.text('PPKom', 100, currentY + 5, { align: 'center' });
+    doc.text('Yang Menerima', 170, currentY + 5, { align: 'center' });
 
     currentY += 28;
     doc.setFont('helvetica', 'bold');
-    doc.text(pptk?.name || '', 35, currentY, { align: 'center' });
-    doc.text(ppk?.name || '', 105, currentY, { align: 'center' });
-    doc.text(sppd.recipientName || employee?.name || '', 175, currentY, { align: 'center' });
+    doc.text(ppk?.name || '', 100, currentY, { align: 'center' });
+    doc.text(sppd.recipientName || employee?.name || '', 170, currentY, { align: 'center' });
     
     doc.setFont('helvetica', 'normal');
-    doc.text(`NIP. ${pptk?.nip || ''}`, 35, currentY + 5, { align: 'center' });
-    doc.text(`NIP. ${ppk?.nip || ''}`, 105, currentY + 5, { align: 'center' });
-    doc.text(`NIP. ${sppd.recipientNip || employee?.nip || ''}`, 175, currentY + 5, { align: 'center' });
+    doc.text(`NIP. ${ppk?.nip || ''}`, 100, currentY + 5, { align: 'center' });
+    doc.text(`NIP. ${sppd.recipientNip || employee?.nip || ''}`, 170, currentY + 5, { align: 'center' });
 
     // The Rp box at the bottom left
     const amountText = `${fuelAmount.toLocaleString('id-ID')} ,-`;
