@@ -440,7 +440,7 @@ export const SPPDList: React.FC = () => {
     const budgetData = [
       ['8.', 'Pembebanan Anggaran', ''],
       ['', '- Kegiatan', activity?.name || '-'],
-      ['9.', 'Keterangan lain - lain', sppd.otherNotes ? format(new Date(sppd.otherNotes), 'dd MMMM yyyy', { locale: id }) : '-'],
+      ['9.', 'Keterangan lain - lain', '-'],
     ];
 
     autoTable(doc, {
@@ -833,10 +833,6 @@ export const SPPDList: React.FC = () => {
     
     currentY += 7;
     doc.text('• Dokumentasi kegiatan terlampir,', 25, currentY);
-    if (sppd.fuelType) {
-      currentY += 6;
-      doc.text(`• BBM yang digunakan: ${sppd.fuelType} (Rp. ${sppd.fuelAmount?.toLocaleString('id-ID') || '0'})`, 25, currentY);
-    }
     currentY += 6;
     doc.text('• Selama kegiatan berlangsung lancar.', 25, currentY);
     currentY += 6;
