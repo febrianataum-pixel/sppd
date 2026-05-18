@@ -1156,7 +1156,7 @@ export const SPPDList: React.FC = () => {
   const renderKwitansiContent = (doc: jsPDF, sppd: SPPD) => {
     const employee = employees[sppd.employeeId];
     const ppk = employees[sppd.ppkId];
-    const pptk = sppd.pptkId ? employees[sppd.pptkId] : null;
+    const pptk = sppd.pptkId ? employees[sppd.pptkId] : (Object.values(employees) as Employee[]).find(e => e.jabatanSppd?.includes('PPTK'));
     const subActivity = activities[sppd.subActivityId];
 
     const fuelPriceObj = settings?.fuelPrices.find(f => f.type === sppd.fuelType);
@@ -1272,7 +1272,7 @@ export const SPPDList: React.FC = () => {
   const renderKwitansiBBMContent = (doc: jsPDF, sppd: SPPD) => {
     const employee = employees[sppd.employeeId];
     const ppk = employees[sppd.ppkId];
-    const pptk = sppd.pptkId ? employees[sppd.pptkId] : null;
+    const pptk = sppd.pptkId ? employees[sppd.pptkId] : (Object.values(employees) as Employee[]).find(e => e.jabatanSppd?.includes('PPTK'));
     const subActivity = activities[sppd.subActivityId];
     
     const fuelPriceObj = settings?.fuelPrices.find(f => f.type === sppd.fuelType);

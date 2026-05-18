@@ -74,6 +74,11 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
         if (ppk) {
           setFormData(prev => ({ ...prev, ppkId: ppk.id }));
         }
+        
+        const pptk = emps.find(e => e.jabatanSppd?.includes('PPTK'));
+        if (pptk) {
+          setFormData(prev => ({ ...prev, pptkId: pptk.id }));
+        }
       }
     });
 
