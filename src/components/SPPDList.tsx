@@ -1021,17 +1021,34 @@ export const SPPDList: React.FC = () => {
     doc.text(':', 60, 35);
     doc.text(format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id }), 65, 35);
 
-    // Table Data
-    const travelCost = settings?.travelCosts.find(c => {
-      const typeMatch = c.type === (sppd.travelType || 'Dalam Daerah');
-      const tingkatMatch = c.tingkat === sppd.tingkatBiaya;
-      if (!typeMatch || !tingkatMatch) return false;
-      if (c.type === 'Luar Daerah' && c.destination) {
-        return sppd.destination.toLowerCase().includes(c.destination.toLowerCase());
+    // Helper function to find best matching travel cost
+    const findTravelCost = (tingkat: string) => {
+      if (!settings?.travelCosts) return null;
+      
+      const type = sppd.travelType || 'Dalam Daerah';
+      
+      // For Luar Daerah, try to find specific destination match first
+      if (type === 'Luar Daerah') {
+        const specificMatch = settings.travelCosts.find(c => 
+          c.type === 'Luar Daerah' && 
+          c.tingkat === tingkat && 
+          c.destination && 
+          sppd.destination.toLowerCase().includes(c.destination.toLowerCase())
+        );
+        if (specificMatch) return specificMatch;
       }
-      return true;
-    });
-    const dailyAllowance = travelCost?.amount || 430000;
+
+      // Default match (generic destination or Dalam Daerah)
+      return settings.travelCosts.find(c => 
+        c.type === type && 
+        c.tingkat === tingkat && 
+        (!c.destination || c.destination.trim() === '')
+      );
+    };
+
+    // Main Employee Cost
+    const travelCost = findTravelCost(sppd.tingkatBiaya);
+    const dailyAllowance = travelCost?.amount || (sppd.travelType === 'Luar Daerah' ? 430000 : 115000);
     
     const tableBody = [];
     
@@ -1048,16 +1065,8 @@ export const SPPDList: React.FC = () => {
 
     // Followers
     sppd.followers?.forEach((f, idx) => {
-      const fTravelCost = settings?.travelCosts.find(c => {
-        const typeMatch = c.type === (sppd.travelType || 'Dalam Daerah');
-        const tingkatMatch = c.tingkat === f.tingkat;
-        if (!typeMatch || !tingkatMatch) return false;
-        if (c.type === 'Luar Daerah' && c.destination) {
-          return sppd.destination.toLowerCase().includes(c.destination.toLowerCase());
-        }
-        return true;
-      });
-      const fDailyAllowance = fTravelCost?.amount || 430000;
+      const fTravelCost = findTravelCost(f.tingkat);
+      const fDailyAllowance = fTravelCost?.amount || (sppd.travelType === 'Luar Daerah' ? 430000 : 115000);
       tableBody.push([
         (idx + 2).toString(),
         f.name,
