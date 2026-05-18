@@ -532,26 +532,29 @@ export const SPPDList: React.FC = () => {
     doc.text('Dasar', 20, 70);
     doc.text(':', 45, 70);
     
-    const legalBasis = (settings?.legalBasis && settings.legalBasis.length > 0) 
-      ? [...settings.legalBasis]
-      : [
-          'Peraturan Daerah Kabupaten Blora Nomor 11 tahun 2024, tentang Anggaran Pendapatan dan Belanja Daerah Kabupaten Blora Tahun 2024;',
-          'Peraturan Bupati Blora Nomor 42 Tahun 2024 tentang Anggaran Pendapatan dan Belanja Daerah Kab. Blora Tahun 2025;',
-          'Dokumen Pelaksanaan Anggaran Satuan Kerja Perangkat Daerah (DPA SKPD) Nomor 900/4689/2024 Tahun Anggaran 2025;',
-          'Kepentingan Dinas.'
-        ];
+    const hasInvitation = !!(sppd.invitationFrom || sppd.invitationNumber || sppd.invitationSubject || sppd.invitationDate);
+    
+    let legalBasis: string[] = [];
+    if (hasInvitation) {
+      legalBasis = (settings?.legalBasis && settings.legalBasis.length > 0) 
+        ? [...settings.legalBasis]
+        : [
+            'Peraturan Daerah Kabupaten Blora Nomor 11 tahun 2024, tentang Anggaran Pendapatan dan Belanja Daerah Kabupaten Blora Tahun 2024;',
+            'Peraturan Bupati Blora Nomor 42 Tahun 2024 tentang Anggaran Pendapatan dan Belanja Daerah Kab. Blora Tahun 2025;',
+            'Dokumen Pelaksanaan Anggaran Satuan Kerja Perangkat Daerah (DPA SKPD) Nomor 900/4689/2024 Tahun Anggaran 2025;',
+            'Kepentingan Dinas.'
+          ];
 
-    // Add invitation as number 4 if it exists
-    if (sppd.invitationFrom || sppd.invitationNumber || sppd.invitationSubject || sppd.invitationDate) {
       const dateStr = sppd.invitationDate ? format(new Date(sppd.invitationDate), 'dd MMMM yyyy', { locale: id }) : '.......';
       const invitationText = `Undangan Surat dari ${sppd.invitationFrom || '.......'}, nomor : ${sppd.invitationNumber || '.......'}, Tanggal : ${dateStr}, Perihal : ${sppd.invitationSubject || '.......'};`;
 
-      // Replace or insert at index 3 (item number 4)
       if (legalBasis.length >= 4) {
         legalBasis.splice(3, 0, invitationText);
       } else {
         legalBasis.push(invitationText);
       }
+    } else {
+      legalBasis = ['Kepentingan Dinas.'];
     }
 
     autoTable(doc, {
