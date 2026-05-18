@@ -72,6 +72,8 @@ export interface SPPD {
   documentation?: string[];
   fuelType?: string;
   fuelAmount?: number;
+  recipientName?: string;
+  recipientNip?: string;
   completedAt?: string;
   invitationFrom?: string;
   invitationNumber?: string;

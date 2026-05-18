@@ -1423,11 +1423,11 @@ export const SPPDList: React.FC = () => {
     currentY += 28;
     doc.setFont('helvetica', 'bold');
     doc.text(ppk?.name || '', 100, currentY, { align: 'center' });
-    doc.text(employee?.name || '', 170, currentY, { align: 'center' });
+    doc.text(sppd.recipientName || employee?.name || '', 170, currentY, { align: 'center' });
     
     doc.setFont('helvetica', 'normal');
     doc.text(`NIP. ${ppk?.nip || ''}`, 100, currentY + 5, { align: 'center' });
-    doc.text(`NIP. ${employee?.nip || ''}`, 170, currentY + 5, { align: 'center' });
+    doc.text(`NIP. ${sppd.recipientNip || employee?.nip || ''}`, 170, currentY + 5, { align: 'center' });
 
     // The Rp box at the bottom left
     const amountText = `${fuelAmount.toLocaleString('id-ID')} ,-`;
@@ -1435,7 +1435,7 @@ export const SPPDList: React.FC = () => {
     doc.setFont('helvetica', 'bold');
     
     const rpBoxX = 15;
-    const rpBoxY = currentY - 10;
+    const rpBoxY = currentY + 12;
     const rpBoxW = 60;
     const rpBoxH = 15;
     

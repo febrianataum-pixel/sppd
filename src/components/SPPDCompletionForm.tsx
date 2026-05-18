@@ -29,6 +29,9 @@ export const SPPDCompletionForm: React.FC<SPPDCompletionFormProps> = ({ isOpen, 
   const [documentation, setDocumentation] = useState<string[]>([]);
   const [fuelType, setFuelType] = useState<string>('');
   const [fuelAmount, setFuelAmount] = useState<number>(0);
+  const [recipientName, setRecipientName] = useState<string>('');
+  const [recipientNip, setRecipientNip] = useState<string>('');
+  const [availableRecipients, setAvailableRecipients] = useState<{name: string, nip: string}[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   useEffect(() => {
@@ -52,6 +55,32 @@ export const SPPDCompletionForm: React.FC<SPPDCompletionFormProps> = ({ isOpen, 
           setDocumentation(data.documentation || []);
           setFuelType(data.fuelType || '');
           setFuelAmount(data.fuelAmount || 0);
+          setRecipientName(data.recipientName || '');
+          setRecipientNip(data.recipientNip || '');
+
+          // Populate available recipients
+          const recipients: {name: string, nip: string}[] = [];
+          
+          // Add main employee
+          const employeeSnap = await getDoc(doc(db, 'employees', data.employeeId));
+          if (employeeSnap.exists()) {
+            const empData = employeeSnap.data();
+            recipients.push({ name: empData.name, nip: empData.nip });
+            // Default to main employee if not set
+            if (!data.recipientName) {
+              setRecipientName(empData.name);
+              setRecipientNip(empData.nip);
+            }
+          }
+
+          // Add followers
+          if (data.followers) {
+            data.followers.forEach(f => {
+              recipients.push({ name: f.name, nip: f.nip });
+            });
+          }
+
+          setAvailableRecipients(recipients);
         }
       } catch (err) {
         console.error(err);
@@ -159,6 +188,8 @@ export const SPPDCompletionForm: React.FC<SPPDCompletionFormProps> = ({ isOpen, 
         documentation,
         fuelType,
         fuelAmount,
+        recipientName,
+        recipientNip,
         status: 'completed',
         completedAt: new Date().toISOString()
       });
@@ -243,6 +274,26 @@ export const SPPDCompletionForm: React.FC<SPPDCompletionFormProps> = ({ isOpen, 
                     />
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700 ml-1">Yang Menerima BBM</label>
+                <select
+                  value={`${recipientName}|${recipientNip}`}
+                  onChange={(e) => {
+                    const [name, nip] = e.target.value.split('|');
+                    setRecipientName(name);
+                    setRecipientNip(nip);
+                  }}
+                  className="w-full px-5 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-green-500 transition-all text-gray-700"
+                >
+                  <option value="">Pilih Penerima...</option>
+                  {availableRecipients.map((rec, idx) => (
+                    <option key={idx} value={`${rec.name}|${rec.nip}`}>
+                      {rec.name} {rec.nip ? `(NIP. ${rec.nip})` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Hasil Perjalanan Dinas */}
