@@ -13,6 +13,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { SPPD, OperationType, AppSettings } from '../types';
 import { handleFirestoreError } from '../lib/error-handler';
+import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface SPPDCompletionFormProps {
@@ -25,6 +26,7 @@ export const SPPDCompletionForm: React.FC<SPPDCompletionFormProps> = ({ isOpen, 
   const [isFetching, setFetching] = useState(false);
   const [isSaving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isCompressing, setCompressing] = useState(false);
   const [reportResults, setReportResults] = useState<string[]>(['']);
   const [documentation, setDocumentation] = useState<string[]>([]);
   const [fuelType, setFuelType] = useState<string>('');
@@ -93,7 +95,7 @@ export const SPPDCompletionForm: React.FC<SPPDCompletionFormProps> = ({ isOpen, 
     fetchSPPD();
   }, [isOpen, sppdId]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
@@ -102,48 +104,60 @@ export const SPPDCompletionForm: React.FC<SPPDCompletionFormProps> = ({ isOpen, 
       return;
     }
 
-    Array.from(files).forEach((file: File) => {
-      // Basic size check for original file (though we will compress it)
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit for raw upload
-        setError('Ukuran file asli terlalu besar (maksimal 5MB)');
-        return;
-      }
+    setCompressing(true);
+    setError(null);
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
+    const compressImage = (file: File): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+          const img = new Image();
+          img.src = event.target?.result as string;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
 
-          // Resize logic (Max width/height 800px)
-          const MAX_SIZE = 800;
-          if (width > height) {
-            if (width > MAX_SIZE) {
-              height *= MAX_SIZE / width;
-              width = MAX_SIZE;
+            // Resize logic (Max width/height 600px for document safety)
+            const MAX_SIZE = 600;
+            if (width > height) {
+              if (width > MAX_SIZE) {
+                height *= MAX_SIZE / width;
+                width = MAX_SIZE;
+              }
+            } else {
+              if (height > MAX_SIZE) {
+                width *= MAX_SIZE / height;
+                height = MAX_SIZE;
+              }
             }
-          } else {
-            if (height > MAX_SIZE) {
-              width *= MAX_SIZE / height;
-              height = MAX_SIZE;
-            }
-          }
 
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0, width, height);
 
-          // Compress to JPEG with 0.6 quality
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
-          setDocumentation(prev => [...prev, compressedBase64]);
+            // Compress to JPEG with 0.5 quality
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.5);
+            resolve(compressedBase64);
+          };
+          img.onerror = () => reject(new Error('Gagal memproses gambar'));
         };
-        img.src = event.target?.result as string;
-      };
-      reader.readAsDataURL(file);
-    });
+        reader.onerror = () => reject(new Error('Gagal membaca file'));
+      });
+    };
+
+    try {
+      const compressedImages = await Promise.all(
+        Array.from(files).map(file => compressImage(file as File))
+      );
+      setDocumentation(prev => [...prev, ...compressedImages]);
+    } catch (err) {
+      setError('Terjadi kesalahan saat mengompres gambar');
+    } finally {
+      setCompressing(false);
+    }
   };
 
   const removeImage = (index: number) => {
@@ -349,13 +363,26 @@ export const SPPDCompletionForm: React.FC<SPPDCompletionFormProps> = ({ isOpen, 
                     <ImageIcon className="w-5 h-5 text-green-600" />
                     <h3>Dokumentasi Kegiatan</h3>
                   </div>
-                  <label className="cursor-pointer px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors flex items-center gap-2">
-                    <Plus className="w-4 h-4" />
-                    Tambah Foto
+                  <label className={cn(
+                    "cursor-pointer px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2",
+                    isCompressing ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-green-50 text-green-600 hover:bg-green-100"
+                  )}>
+                    {isCompressing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Mengompres...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        Tambah Foto
+                      </>
+                    )}
                     <input
                       type="file"
                       multiple
                       accept="image/*"
+                      disabled={isCompressing}
                       onChange={handleImageUpload}
                       className="hidden"
                     />
