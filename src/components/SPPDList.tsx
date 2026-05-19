@@ -18,7 +18,8 @@ import {
   ChevronDown,
   ArrowUpDown,
   Image as ImageIcon,
-  FolderTree
+  FolderTree,
+  Banknote
 } from 'lucide-react';
 import { 
   collection, 
@@ -27,7 +28,8 @@ import {
   doc,
   query,
   orderBy,
-  getDoc
+  getDoc,
+  updateDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { SPPD, Employee, SubActivity, OperationType, AppSettings } from '../types';
@@ -55,6 +57,7 @@ export const SPPDList: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewFilename, setPreviewFilename] = useState<string>('');
+  const [disbursementModal, setDisbursementModal] = useState<{ isOpen: boolean, sppd: SPPD | null }>({ isOpen: false, sppd: null });
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
   const [filterBidang, setFilterBidang] = useState<string>('all');
@@ -111,6 +114,27 @@ export const SPPDList: React.FC = () => {
       } catch (err) {
         console.error(err);
       }
+    }
+  };
+
+  const handleToggleDisbursement = (sppd: SPPD) => {
+    setDisbursementModal({ isOpen: true, sppd });
+  };
+
+  const confirmDisbursement = async () => {
+    const sppd = disbursementModal.sppd;
+    if (!sppd) return;
+
+    const newStatus = sppd.disbursementStatus === 'Sudah Dicairkan' ? 'Belum Dicairkan' : 'Sudah Dicairkan';
+    
+    try {
+      await updateDoc(doc(db, 'sppd', sppd.id!), {
+        disbursementStatus: newStatus
+      });
+      setDisbursementModal({ isOpen: false, sppd: null });
+    } catch (err) {
+      console.error(err);
+      handleFirestoreError(err as any, OperationType.UPDATE, 'sppd');
     }
   };
 
@@ -1676,13 +1700,14 @@ export const SPPDList: React.FC = () => {
                 >
                   <div className="flex items-center">Status <SortIcon column="status" /></div>
                 </th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Pencairan</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {sortedSPPD.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-400">
                     <div className="flex flex-col items-center">
                       <FileText className="w-12 h-12 text-gray-200 mb-3" />
                       <p>Tidak ada data SPPD ditemukan</p>
@@ -1745,7 +1770,28 @@ export const SPPDList: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
+                      <div className="flex flex-col gap-1">
+                        <div className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider w-fit",
+                          sppd.disbursementStatus === 'Sudah Dicairkan' ? "bg-green-100 text-green-700" : "bg-red-50 text-red-600"
+                        )}>
+                          {sppd.disbursementStatus === 'Sudah Dicairkan' ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                          {sppd.disbursementStatus || 'Belum Dicairkan'}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleToggleDisbursement(sppd)}
+                          className={cn(
+                            "p-2 rounded-lg transition-all",
+                            sppd.disbursementStatus === 'Sudah Dicairkan' ? "text-orange-600 hover:bg-orange-50" : "text-blue-600 hover:bg-blue-50"
+                          )}
+                          title={sppd.disbursementStatus === 'Sudah Dicairkan' ? "Batalkan Pencairan" : "Cairkan SPPD"}
+                        >
+                          <Banknote className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => {
                             setSelectedSppdId(sppd.id!);
@@ -1998,6 +2044,71 @@ export const SPPDList: React.FC = () => {
                   className="w-full h-full rounded-xl border border-gray-200 shadow-inner bg-white"
                   title="PDF Preview"
                 />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Disbursement Confirmation Modal */}
+      <AnimatePresence>
+        {disbursementModal.isOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDisbursementModal({ isOpen: false, sppd: null })}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden p-6"
+            >
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className={cn(
+                  "w-16 h-16 rounded-2xl flex items-center justify-center transition-colors",
+                  disbursementModal.sppd?.disbursementStatus === 'Sudah Dicairkan' 
+                    ? "bg-orange-50 text-orange-600" 
+                    : "bg-blue-50 text-blue-600"
+                )}>
+                  <Banknote className="w-8 h-8" />
+                </div>
+                
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">
+                    {disbursementModal.sppd?.disbursementStatus === 'Sudah Dicairkan' 
+                      ? 'Batalkan Pencairan?' 
+                      : 'Konfirmasi Pencairan?'}
+                  </h3>
+                  <p className="text-gray-500 mt-2 text-sm leading-relaxed">
+                    {disbursementModal.sppd?.disbursementStatus === 'Sudah Dicairkan'
+                      ? 'Apakah Anda yakin ingin membatalkan status pencairan untuk SPPD ini? Data akan kembali ke status belum dicairkan.'
+                      : 'Apakah Anda yakin ingin menandai SPPD ini sebagai sudah dicairkan? Tindakan ini akan memperbarui status pencairan.'}
+                  </p>
+                </div>
+
+                <div className="flex flex-col w-full gap-3 mt-4">
+                  <button
+                    onClick={confirmDisbursement}
+                    className={cn(
+                      "w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg",
+                      disbursementModal.sppd?.disbursementStatus === 'Sudah Dicairkan'
+                        ? "bg-orange-600 hover:bg-orange-700 shadow-orange-100"
+                        : "bg-blue-600 hover:bg-blue-700 shadow-blue-100"
+                    )}
+                  >
+                    Ya, {disbursementModal.sppd?.disbursementStatus === 'Sudah Dicairkan' ? 'Batalkan' : 'Konfirmasi Sekarang'}
+                  </button>
+                  <button
+                    onClick={() => setDisbursementModal({ isOpen: false, sppd: null })}
+                    className="w-full py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-50 transition-all"
+                  >
+                    Kembali
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

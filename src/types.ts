@@ -76,6 +76,7 @@ export interface SPPD {
   recipientName?: string;
   recipientNip?: string;
   completedAt?: string;
+  disbursementStatus?: 'Belum Dicairkan' | 'Sudah Dicairkan';
   invitationFrom?: string;
   invitationNumber?: string;
   invitationSubject?: string;
