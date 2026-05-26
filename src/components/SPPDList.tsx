@@ -36,7 +36,7 @@ import { SPPD, Employee, SubActivity, OperationType, AppSettings } from '../type
 import { handleFirestoreError } from '../lib/error-handler';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { cn } from '../lib/utils';
+import { cn, getProvinceFromDestination } from '../lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1049,12 +1049,26 @@ export const SPPDList: React.FC = () => {
       
       // For Luar Daerah, try to find specific destination match first
       if (type === 'Luar Daerah') {
-        const specificMatch = settings.travelCosts.find(c => 
-          c.type === 'Luar Daerah' && 
-          c.tingkat === tingkat && 
-          c.destination && 
-          sppd.destination.toLowerCase().includes(c.destination.toLowerCase())
-        );
+        const sppdProvince = getProvinceFromDestination(sppd.destination);
+        const specificMatch = settings.travelCosts.find(c => {
+          if (c.type !== 'Luar Daerah' || c.tingkat !== tingkat || !c.destination) return false;
+          
+          const costDestLower = c.destination.toLowerCase();
+          
+          // 1. If we have a resolved province and it matches the cost destination
+          if (sppdProvince && (costDestLower === sppdProvince.toLowerCase() || costDestLower.includes(sppdProvince.toLowerCase()))) {
+            return true;
+          }
+          
+          // 2. If the cost destination has a resolved province and it matches sppd's province
+          const costProvince = getProvinceFromDestination(c.destination);
+          if (sppdProvince && costProvince && sppdProvince.toLowerCase() === costProvince.toLowerCase()) {
+            return true;
+          }
+          
+          // 3. Fallback to substring matching (e.g. direct substring match of city name)
+          return sppd.destination.toLowerCase().includes(costDestLower);
+        });
         if (specificMatch) return specificMatch;
       }
 
@@ -1196,7 +1210,22 @@ export const SPPDList: React.FC = () => {
       const tingkatMatch = c.tingkat === sppd.tingkatBiaya;
       if (!typeMatch || !tingkatMatch) return false;
       if (c.type === 'Luar Daerah' && c.destination) {
-        return sppd.destination.toLowerCase().includes(c.destination.toLowerCase());
+        const sppdProvince = getProvinceFromDestination(sppd.destination);
+        const costDestLower = c.destination.toLowerCase();
+        
+        // 1. If we have a resolved province and it matches the cost destination
+        if (sppdProvince && (costDestLower === sppdProvince.toLowerCase() || costDestLower.includes(sppdProvince.toLowerCase()))) {
+          return true;
+        }
+        
+        // 2. If the cost destination has a resolved province and it matches sppd's province
+        const costProvince = getProvinceFromDestination(c.destination);
+        if (sppdProvince && costProvince && sppdProvince.toLowerCase() === costProvince.toLowerCase()) {
+          return true;
+        }
+        
+        // 3. Fallback to substring match
+        return sppd.destination.toLowerCase().includes(costDestLower);
       }
       return true;
     });

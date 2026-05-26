@@ -343,13 +343,35 @@ const Settings: React.FC = () => {
                         </div>
                         {cost.type === 'Luar Daerah' && (
                           <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tujuan / Lokasi</label>
-                            <input
-                              value={cost.destination || ''}
-                              onChange={(e) => updateTravelCost(idx, 'destination', e.target.value)}
-                              placeholder="Yogyakarta, Jakarta..."
-                              className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
-                            />
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Provinsi / Tujuan</label>
+                            <select
+                              value={['Jawa Tengah', 'Jawa Timur', 'DI Yogyakarta', 'Jawa Barat', 'DKI Jakarta', 'Banten'].includes(cost.destination || '') ? cost.destination : 'Lainnya'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'Lainnya') {
+                                  updateTravelCost(idx, 'destination', '');
+                                } else {
+                                  updateTravelCost(idx, 'destination', val);
+                                }
+                              }}
+                              className="w-full px-4 py-2 bg-white border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                            >
+                              <option value="Jawa Tengah">Provinsi Jawa Tengah</option>
+                              <option value="Jawa Timur">Provinsi Jawa Timur</option>
+                              <option value="DI Yogyakarta">Provinsi DI Yogyakarta</option>
+                              <option value="Jawa Barat">Provinsi Jawa Barat</option>
+                              <option value="DKI Jakarta">Provinsi DKI Jakarta</option>
+                              <option value="Banten">Provinsi Banten</option>
+                              <option value="Lainnya">Input Manual / Lainnya</option>
+                            </select>
+                            {(!['Jawa Tengah', 'Jawa Timur', 'DI Yogyakarta', 'Jawa Barat', 'DKI Jakarta', 'Banten'].includes(cost.destination || '')) && (
+                              <input
+                                value={cost.destination || ''}
+                                onChange={(e) => updateTravelCost(idx, 'destination', e.target.value)}
+                                placeholder="Masukkan Provinsi/Tujuan..."
+                                className="w-full px-4 py-2 mt-1.5 bg-white border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                              />
+                            )}
                           </div>
                         )}
                         <div className="space-y-1">
@@ -368,6 +390,11 @@ const Settings: React.FC = () => {
                         </div>
                       </div>
                     ))}
+                  </div>
+                  <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 mt-4">
+                    <p className="text-sm text-blue-700 font-semibold leading-relaxed">
+                      💡 Info Otomatis: Untuk Perjalanan Luar Daerah, sistem secara otomatis memetakan nama kota/kabupaten tujuan di SPPD ke provinsinya (contoh: Semarang, Pati, Kudus masuk Provinsi Jawa Tengah). Nominal biaya dinas akan otomatis disesuaikan berdasarkan ketentuan provinsi tersebut.
+                    </p>
                   </div>
                 </div>
               )}
