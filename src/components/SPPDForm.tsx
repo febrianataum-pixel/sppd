@@ -367,7 +367,7 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative bg-gray-50 w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl shadow-2xl flex flex-col"
+            className="relative bg-gray-50 w-full max-w-5xl xl:max-w-6xl max-h-[92vh] overflow-hidden rounded-3xl shadow-2xl flex flex-col"
           >
             {/* Header */}
             <div className="p-6 bg-white border-b border-gray-100 flex items-center justify-between shrink-0">

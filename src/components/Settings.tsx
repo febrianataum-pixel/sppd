@@ -444,15 +444,15 @@ const Settings: React.FC = () => {
   if (loading) return <div className="flex justify-center p-12">Loading...</div>;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="w-full space-y-6 sm:space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="p-3 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
             <SettingsIcon className="w-8 h-8" />
           </div>
           <div>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Utilitas & Pengaturan</h1>
-            <p className="text-gray-500 font-medium">Konfigurasi sistem, akun pengguna, dan data referensi</p>
+            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">Utilitas & Pengaturan</h1>
+            <p className="text-gray-500 font-medium text-sm sm:text-base">Konfigurasi sistem, akun pengguna, dan data referensi</p>
           </div>
         </div>
 
@@ -479,9 +479,9 @@ const Settings: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="flex flex-col lg:flex-row gap-6 xl:gap-8 items-start w-full">
         {/* Sidebar Tabs */}
-        <div className="space-y-2">
+        <div className="w-full lg:w-64 xl:w-72 shrink-0 space-y-2 lg:sticky lg:top-4">
           {[
             { id: 'general', label: 'Umum & KOP', icon: ImageIcon },
             { id: 'users', label: 'Pengguna / Users', icon: ShieldCheck, badge: usersList.length > 0 ? usersList.length : undefined },
@@ -493,7 +493,7 @@ const Settings: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 ${
+              className={`w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl transition-all duration-300 ${
                 activeTab === tab.id 
                 ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' 
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-100'
@@ -501,7 +501,7 @@ const Settings: React.FC = () => {
             >
               <div className="flex items-center gap-3">
                 <tab.icon className="w-5 h-5" />
-                <span className="font-bold">{tab.label}</span>
+                <span className="font-bold text-sm sm:text-base">{tab.label}</span>
               </div>
               <div className="flex items-center gap-2">
                 {tab.badge !== undefined && (
@@ -518,14 +518,14 @@ const Settings: React.FC = () => {
         </div>
 
         {/* Content Area */}
-        <div className="lg:col-span-3">
+        <div className="flex-1 min-w-0 w-full">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8"
+              className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 sm:p-7 lg:p-8 xl:p-10 w-full"
             >
               {activeTab === 'general' && (
                 <div className="space-y-8">
@@ -588,20 +588,20 @@ const Settings: React.FC = () => {
                       <Plus className="w-5 h-5 text-blue-600" />
                       Tambah Sub Kegiatan
                     </h3>
-                    <form onSubmit={handleAddActivity} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <form onSubmit={handleAddActivity} className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4">
                       <input
                         placeholder="Kode (misal: 1.01.01)"
                         value={newActivity.code}
                         onChange={(e) => setNewActivity({ ...newActivity, code: e.target.value })}
-                        className="px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                        className="sm:col-span-4 px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
                       />
                       <input
                         placeholder="Nama Sub Kegiatan"
                         value={newActivity.name}
                         onChange={(e) => setNewActivity({ ...newActivity, name: e.target.value })}
-                        className="px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                        className="sm:col-span-6 px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
                       />
-                      <button type="submit" className="bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors">
+                      <button type="submit" className="sm:col-span-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors py-3 sm:py-0">
                         Tambah
                       </button>
                     </form>
@@ -613,15 +613,15 @@ const Settings: React.FC = () => {
                       <table className="w-full text-left">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Kode</th>
-                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Nama</th>
-                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Aksi</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest w-44">Kode</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Nama Sub Kegiatan</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right w-24">Aksi</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                           {subActivities.map((act) => (
                             <tr key={act.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-6 py-4 font-mono text-sm text-blue-600">{act.code}</td>
+                              <td className="px-6 py-4 font-mono text-sm font-bold text-blue-600">{act.code}</td>
                               <td className="px-6 py-4 text-sm font-medium text-gray-700">{act.name}</td>
                               <td className="px-6 py-4 text-right">
                                 <button onClick={() => handleDeleteActivity(act.id!)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
@@ -677,7 +677,7 @@ const Settings: React.FC = () => {
                         />
                         <button
                           type="submit"
-                          className="px-3 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-xl text-xs flex items-center gap-1 transition-colors"
+                          className="px-3 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-xl text-xs flex items-center gap-1 transition-colors cursor-pointer"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           Tambah
@@ -686,7 +686,7 @@ const Settings: React.FC = () => {
 
                       <button
                         onClick={handleResetMatrixTemplate}
-                        className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs transition-colors"
+                        className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
                         title="Kembalikan ke baris standar H s/d B"
                       >
                         Format Standar (H - B)
@@ -695,26 +695,26 @@ const Settings: React.FC = () => {
                   </div>
 
                   {/* Matrix Table */}
-                  <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
-                    <table className="w-full text-center text-sm border-collapse min-w-[780px]">
+                  <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm w-full">
+                    <table className="w-full text-center text-sm border-collapse min-w-[760px]">
                       <thead>
                         <tr className="bg-gray-100 text-gray-900 font-bold border-b border-gray-200 text-xs uppercase tracking-wider">
-                          <th rowSpan={2} className="px-4 py-3.5 border-r border-gray-200 w-24 text-center bg-gray-100">
+                          <th rowSpan={2} className="px-3 py-3.5 border-r border-gray-200 w-16 sm:w-20 text-center bg-gray-100">
                             Tingkat
                           </th>
-                          <th rowSpan={2} className="px-4 py-3.5 border-r border-gray-200 w-44 text-center bg-gray-100">
+                          <th rowSpan={2} className="px-4 py-3.5 border-r border-gray-200 min-w-[130px] w-[16%] text-center bg-gray-100">
                             Dalam Daerah
                           </th>
                           <th colSpan={5} className="px-4 py-2 text-center border-b border-gray-200 bg-blue-50/70 text-blue-900">
                             Luar Daerah
                           </th>
-                          <th rowSpan={2} className="px-3 py-3.5 w-16 text-center bg-gray-100">
+                          <th rowSpan={2} className="px-2 py-3.5 w-14 text-center bg-gray-100">
                             Aksi
                           </th>
                         </tr>
                         <tr className="bg-blue-50/40 text-blue-950 font-bold text-xs border-b border-gray-200">
                           {LUAR_DAERAH_MATRIX_COLS.map((col) => (
-                            <th key={col} className="px-3 py-2.5 border-r border-gray-200 min-w-[130px] text-center">
+                            <th key={col} className="px-3 py-2.5 border-r border-gray-200 min-w-[120px] w-[14%] text-center">
                               {col}
                             </th>
                           ))}
@@ -725,8 +725,8 @@ const Settings: React.FC = () => {
                           return (
                             <tr key={tingkat} className="hover:bg-blue-50/20 transition-colors">
                               {/* Tingkat Label */}
-                              <td className="px-4 py-3 border-r border-gray-200 font-black text-gray-900 bg-gray-50/60 text-base">
-                                <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-gray-200 text-gray-800 shadow-xs">
+                              <td className="px-2 sm:px-3 py-3 border-r border-gray-200 font-black text-gray-900 bg-gray-50/60 text-base text-center">
+                                <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-gray-200 text-gray-800 shadow-xs font-bold">
                                   {tingkat}
                                 </span>
                               </td>
@@ -743,12 +743,12 @@ const Settings: React.FC = () => {
                                       handleMatrixCostChange(tingkat, 'Dalam Daerah', '', raw ? parseInt(raw, 10) : 0);
                                     }}
                                     placeholder="0"
-                                    className="w-full pl-8 pr-2.5 py-2 bg-gray-50/50 hover:bg-white focus:bg-white border border-gray-200 focus:border-blue-500 rounded-xl text-xs font-bold text-right text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                                    className="w-full pl-8 pr-2.5 py-2.5 bg-gray-50/50 hover:bg-white focus:bg-white border border-gray-200 focus:border-blue-500 rounded-xl text-xs sm:text-sm font-bold text-right text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
                                   />
                                 </div>
                               </td>
 
-                              {/* 5 Luar Daerah Columns: Jawa Tengah, Jawa Timur, Jawa Barat, DKI Jakarta, Luar Jawa */}
+                              {/* 5 Luar Daerah Columns */}
                               {LUAR_DAERAH_MATRIX_COLS.map((destCol) => {
                                 const val = getMatrixCostValue(tingkat, 'Luar Daerah', destCol);
                                 return (
@@ -763,7 +763,7 @@ const Settings: React.FC = () => {
                                           handleMatrixCostChange(tingkat, 'Luar Daerah', destCol, raw ? parseInt(raw, 10) : 0);
                                         }}
                                         placeholder="0"
-                                        className="w-full pl-8 pr-2.5 py-2 bg-gray-50/50 hover:bg-white focus:bg-white border border-gray-200 focus:border-blue-500 rounded-xl text-xs font-bold text-right text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                                        className="w-full pl-8 pr-2.5 py-2.5 bg-gray-50/50 hover:bg-white focus:bg-white border border-gray-200 focus:border-blue-500 rounded-xl text-xs sm:text-sm font-bold text-right text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
                                       />
                                     </div>
                                   </td>
@@ -775,7 +775,7 @@ const Settings: React.FC = () => {
                                 <button
                                   onClick={() => handleDeleteTingkatRow(tingkat)}
                                   title={`Hapus baris Tingkat ${tingkat}`}
-                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -809,34 +809,37 @@ const Settings: React.FC = () => {
                       <Fuel className="w-5 h-5 text-blue-600" />
                       Jenis Bahan Bakar & Harga
                     </h3>
-                    <button onClick={addFuelPrice} className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors">
+                    <button onClick={addFuelPrice} className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors cursor-pointer">
                       <Plus className="w-5 h-5" />
                     </button>
                   </div>
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {settings.fuelPrices.map((fuel, idx) => (
-                      <div key={idx} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-2xl">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Jenis BBM</label>
-                          <input
-                            value={fuel.type}
-                            onChange={(e) => updateFuelPrice(idx, 'type', e.target.value)}
-                            placeholder="Pertalite, Pertamax..."
-                            className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
-                          />
+                      <div key={idx} className="p-4 bg-gray-50 rounded-2xl space-y-3 border border-gray-100">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Jenis BBM</label>
+                            <input
+                              value={fuel.type}
+                              onChange={(e) => updateFuelPrice(idx, 'type', e.target.value)}
+                              placeholder="Pertalite, Pertamax..."
+                              className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Harga per Liter</label>
+                            <input
+                              type="number"
+                              value={fuel.price}
+                              onChange={(e) => updateFuelPrice(idx, 'price', Number(e.target.value))}
+                              className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                            />
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Harga per Liter</label>
-                          <input
-                            type="number"
-                            value={fuel.price}
-                            onChange={(e) => updateFuelPrice(idx, 'price', Number(e.target.value))}
-                            className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
-                          />
-                        </div>
-                        <div className="flex items-end pb-1">
-                          <button onClick={() => removeFuelPrice(idx)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors">
-                            <Trash2 className="w-5 h-5" />
+                        <div className="flex justify-end pt-1">
+                          <button onClick={() => removeFuelPrice(idx)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer text-xs font-semibold flex items-center gap-1">
+                            <Trash2 className="w-4 h-4" />
+                            <span>Hapus</span>
                           </button>
                         </div>
                       </div>
@@ -849,6 +852,7 @@ const Settings: React.FC = () => {
                   </div>
                 </div>
               )}
+
               {activeTab === 'bendahara' && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
@@ -857,11 +861,14 @@ const Settings: React.FC = () => {
                       Bendahara Pengeluaran Pembantu
                     </h3>
                   </div>
-                  <div className="grid grid-cols-1 gap-6">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     {['Sekretariat', 'Bidang Sosial', 'Bidang PPPA', 'UPTD PPA'].map((bidang) => (
-                      <div key={bidang} className="p-6 bg-gray-50 rounded-2xl space-y-4">
-                        <h4 className="font-bold text-gray-900">{bidang}</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div key={bidang} className="p-6 bg-gray-50 rounded-2xl space-y-4 border border-gray-100">
+                        <div className="flex items-center gap-2 pb-2 border-b border-gray-200/60">
+                          <Building2 className="w-4 h-4 text-blue-600" />
+                          <h4 className="font-bold text-gray-900 text-base">{bidang}</h4>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Jabatan Bendahara</label>
                             <input
@@ -875,7 +882,7 @@ const Settings: React.FC = () => {
                                 saveSettings(updated, false);
                               }}
                               placeholder="Contoh: PEMBANTU BIDANG SOSIAL"
-                              className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
                             />
                           </div>
                           <div className="space-y-1">
@@ -891,7 +898,7 @@ const Settings: React.FC = () => {
                                 saveSettings(updated, false);
                               }}
                               placeholder="Nama Lengkap..."
-                              className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
                             />
                           </div>
                           <div className="space-y-1">
@@ -907,7 +914,7 @@ const Settings: React.FC = () => {
                                 saveSettings(updated, false);
                               }}
                               placeholder="NIP..."
-                              className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
                             />
                           </div>
                         </div>
