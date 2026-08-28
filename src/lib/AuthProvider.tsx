@@ -52,13 +52,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             };
             await setDoc(userRef, initialUserData);
           } else {
-            // Update lastLoginAt and latest photo/displayName if changed
-            await setDoc(userRef, {
-              lastLoginAt: nowIso,
-              displayName: currentUser.displayName || snap.data()?.displayName || currentUser.email?.split('@')[0] || 'Pengguna',
-              photoURL: currentUser.photoURL || snap.data()?.photoURL || '',
-              email: currentUser.email || snap.data()?.email || ''
-            }, { merge: true });
+            const data = snap.data();
+            const lastLoginMs = data?.lastLoginAt ? new Date(data.lastLoginAt).getTime() : 0;
+            const diffHours = (Date.now() - lastLoginMs) / (1000 * 60 * 60);
+
+            // Only update doc if profile details changed or last login was over 1 hour ago
+            const nameChanged = currentUser.displayName && currentUser.displayName !== data?.displayName;
+            const photoChanged = currentUser.photoURL && currentUser.photoURL !== data?.photoURL;
+            const emailChanged = currentUser.email && currentUser.email !== data?.email;
+
+            if (diffHours > 1 || nameChanged || photoChanged || emailChanged) {
+              await setDoc(userRef, {
+                lastLoginAt: nowIso,
+                displayName: currentUser.displayName || data?.displayName || currentUser.email?.split('@')[0] || 'Pengguna',
+                photoURL: currentUser.photoURL || data?.photoURL || '',
+                email: currentUser.email || data?.email || ''
+              }, { merge: true });
+            }
           }
         } catch (err) {
           console.error("Error initializing user profile:", err);

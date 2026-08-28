@@ -14,17 +14,19 @@ import {
   Wallet,
   Plus,
   Trash2,
-  Users
+  Users,
+  Building2
 } from 'lucide-react';
 import { 
   collection, 
   onSnapshot, 
   addDoc, 
   updateDoc, 
-  doc,
-  getDoc
+  doc, 
+  getDoc 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../lib/AuthProvider';
 import { SPPD, Employee, SubActivity, OperationType } from '../types';
 import { handleFirestoreError } from '../lib/error-handler';
 import { cn } from '../lib/utils';
@@ -39,6 +41,11 @@ interface SPPDFormProps {
 }
 
 export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) => {
+  const { appUser } = useAuth();
+  const userBidang = appUser?.bidang;
+  const isAllBidang = !userBidang || userBidang === 'Semua Bidang';
+  const defaultBidang = (!isAllBidang && userBidang) ? userBidang : 'Sekretariat';
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [activities, setActivities] = useState<SubActivity[]>([]);
   const [allSppd, setAllSppd] = useState<SPPD[]>([]);
@@ -57,7 +64,7 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
     travelType: 'Dalam Daerah',
     followers: [],
     tingkatBiaya: 'A',
-    bidang: 'Sekretariat',
+    bidang: defaultBidang,
     otherNotes: '',
   });
 
@@ -127,7 +134,7 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
         travelType: 'Dalam Daerah',
         followers: [],
         tingkatBiaya: 'A',
-        bidang: 'Sekretariat',
+        bidang: defaultBidang,
         otherNotes: '',
       });
       setSppdNumber('');
@@ -431,17 +438,30 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Bidang / Bendahara Pembantu</label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Bidang / Bendahara Pembantu</label>
+                          {!isAllBidang && appUser?.role !== 'Admin' && (
+                            <span className="text-[11px] font-semibold text-blue-600">Sesuai Hak Akses</span>
+                          )}
+                        </div>
                         <select
                           required
-                          value={formData.bidang || ''}
+                          disabled={!isAllBidang && appUser?.role !== 'Admin'}
+                          value={formData.bidang || defaultBidang}
                           onChange={(e) => setFormData({ ...formData, bidang: e.target.value as any })}
-                          className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                          className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium disabled:opacity-80 disabled:bg-gray-100 cursor-pointer disabled:cursor-not-allowed"
                         >
-                          <option value="">Pilih Bidang...</option>
-                          <option value="Sekretariat">Sekretariat</option>
-                          <option value="Bidang Sosial">Bidang Sosial</option>
-                          <option value="Bidang PPPA">Bidang PPPA</option>
+                          {isAllBidang || appUser?.role === 'Admin' ? (
+                            <>
+                              <option value="">Pilih Bidang...</option>
+                              <option value="Sekretariat">Sekretariat</option>
+                              <option value="Bidang Sosial">Bidang Sosial</option>
+                              <option value="Bidang PPPA">Bidang PPPA</option>
+                              <option value="UPTD PPA">UPTD PPA</option>
+                            </>
+                          ) : (
+                            <option value={userBidang}>{userBidang}</option>
+                          )}
                         </select>
                       </div>
                     </div>

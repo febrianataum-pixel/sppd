@@ -5,7 +5,7 @@ export interface AppUser {
   displayName: string;
   photoURL?: string;
   role: 'Admin' | 'Operator' | 'Pegawai';
-  bidang: 'Semua Bidang' | 'Sekretariat' | 'Bidang Sosial' | 'Bidang PPPA';
+  bidang: 'Semua Bidang' | 'Sekretariat' | 'Bidang Sosial' | 'Bidang PPPA' | 'UPTD PPA';
   lastLoginAt?: string;
   createdAt?: string;
 }
@@ -77,7 +77,7 @@ export interface SPPD {
     ket: string;
   }[];
   subActivityId: string;
-  bidang: 'Sekretariat' | 'Bidang Sosial' | 'Bidang PPPA';
+  bidang: 'Sekretariat' | 'Bidang Sosial' | 'Bidang PPPA' | 'UPTD PPA';
   otherNotes: string;
   createdAt: string;
   status: 'draft' | 'active' | 'completed';

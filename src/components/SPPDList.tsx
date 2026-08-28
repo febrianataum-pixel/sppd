@@ -24,7 +24,8 @@ import {
   Loader2,
   PackageCheck,
   AlertTriangle,
-  CalendarX
+  CalendarX,
+  Building2
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { 
@@ -39,18 +40,76 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../lib/AuthProvider';
 import { SPPD, Employee, SubActivity, OperationType, AppSettings } from '../types';
 import { handleFirestoreError } from '../lib/error-handler';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { cn, getProvinceFromDestination } from '../lib/utils';
+import { cn, getProvinceFromDestination, isDestinationOutsideJava } from '../lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { motion, AnimatePresence } from 'motion/react';
 import { SPPDForm } from './SPPDForm';
 import { SPPDCompletionForm } from './SPPDCompletionForm';
 
+// Helper function to find best matching travel cost for SPPD
+const getSPPDTravelCost = (sppd: SPPD, settings?: AppSettings | null, tingkat?: string) => {
+  if (!settings?.travelCosts) return null;
+  const targetTingkat = tingkat || sppd.tingkatBiaya;
+  const type = sppd.travelType || 'Dalam Daerah';
+  
+  // For Luar Daerah, try to find specific destination match first
+  if (type === 'Luar Daerah') {
+    const sppdProvince = getProvinceFromDestination(sppd.destination);
+    const isLuarJawa = isDestinationOutsideJava(sppd.destination);
+
+    // 1. Check specific province / destination matches (e.g. Jawa Tengah, Jawa Timur, Jawa Barat, DKI Jakarta)
+    const specificMatch = settings.travelCosts.find(c => {
+      if (c.type !== 'Luar Daerah' || c.tingkat !== targetTingkat || !c.destination) return false;
+      if (c.destination === 'Luar Jawa') return false; // Handled in step 2
+      
+      const costDestLower = c.destination.toLowerCase();
+      
+      // If we have a resolved province and it matches the cost destination
+      if (sppdProvince && (costDestLower === sppdProvince.toLowerCase() || costDestLower.includes(sppdProvince.toLowerCase()))) {
+        return true;
+      }
+      
+      // If the cost destination has a resolved province and it matches sppd's province
+      const costProvince = getProvinceFromDestination(c.destination);
+      if (sppdProvince && costProvince && sppdProvince.toLowerCase() === costProvince.toLowerCase()) {
+        return true;
+      }
+      
+      // Fallback to substring matching (e.g. direct substring match of city name)
+      return sppd.destination.toLowerCase().includes(costDestLower);
+    });
+    if (specificMatch) return specificMatch;
+
+    // 2. Check Luar Jawa match if destination is outside Java
+    if (isLuarJawa) {
+      const luarJawaMatch = settings.travelCosts.find(c => 
+        c.type === 'Luar Daerah' && 
+        c.tingkat === targetTingkat && 
+        c.destination === 'Luar Jawa'
+      );
+      if (luarJawaMatch) return luarJawaMatch;
+    }
+  }
+
+  // Default match (generic destination or Dalam Daerah)
+  return settings.travelCosts.find(c => 
+    c.type === type && 
+    c.tingkat === targetTingkat && 
+    (!c.destination || c.destination.trim() === '')
+  );
+};
+
 export const SPPDList: React.FC = () => {
+  const { appUser } = useAuth();
+  const userBidang = appUser?.bidang;
+  const isAllBidang = !userBidang || userBidang === 'Semua Bidang';
+
   const [sppdList, setSppdList] = useState<SPPD[]>([]);
   const [employees, setEmployees] = useState<Record<string, Employee>>({});
   const [activities, setActivities] = useState<Record<string, SubActivity>>({});
@@ -67,13 +126,13 @@ export const SPPDList: React.FC = () => {
   const [disbursementModal, setDisbursementModal] = useState<{ isOpen: boolean, sppd: SPPD | null }>({ isOpen: false, sppd: null });
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
-  const [filterBidang, setFilterBidang] = useState<string>('all');
+  const [filterBidang, setFilterBidang] = useState<string>(!isAllBidang && userBidang ? userBidang : 'all');
   
   // Export ZIP State
   const [isExportZipModalOpen, setIsExportZipModalOpen] = useState(false);
   const [exportZipMonth, setExportZipMonth] = useState<string>((new Date().getMonth() + 1).toString());
   const [exportZipYear, setExportZipYear] = useState<string>(new Date().getFullYear().toString());
-  const [exportZipBidang, setExportZipBidang] = useState<string>('all');
+  const [exportZipBidang, setExportZipBidang] = useState<string>(!isAllBidang && userBidang ? userBidang : 'all');
   const [isExportingZip, setIsExportingZip] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number; status: string }>({ current: 0, total: 0, status: '' });
   
@@ -81,7 +140,7 @@ export const SPPDList: React.FC = () => {
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [bulkDeleteMonth, setBulkDeleteMonth] = useState<string>((new Date().getMonth() + 1).toString());
   const [bulkDeleteYear, setBulkDeleteYear] = useState<string>(new Date().getFullYear().toString());
-  const [bulkDeleteBidang, setBulkDeleteBidang] = useState<string>('all');
+  const [bulkDeleteBidang, setBulkDeleteBidang] = useState<string>(!isAllBidang && userBidang ? userBidang : 'all');
   const [isConfirmedDeleteCheckbox, setIsConfirmedDeleteCheckbox] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   
@@ -89,6 +148,15 @@ export const SPPDList: React.FC = () => {
     key: 'createdAt',
     direction: 'desc'
   });
+
+  // Keep filter states synchronized if user's bidang is restricted
+  useEffect(() => {
+    if (!isAllBidang && userBidang) {
+      setFilterBidang(userBidang);
+      setExportZipBidang(userBidang);
+      setBulkDeleteBidang(userBidang);
+    }
+  }, [userBidang, isAllBidang]);
 
   useEffect(() => {
     const unsubSPPD = onSnapshot(query(collection(db, 'sppd'), orderBy('createdAt', 'desc')), (snapshot) => {
@@ -1065,47 +1133,8 @@ export const SPPDList: React.FC = () => {
     doc.text(':', 60, 35);
     doc.text(format(new Date(sppd.departureDate), 'dd MMMM yyyy', { locale: id }), 65, 35);
 
-    // Helper function to find best matching travel cost
-    const findTravelCost = (tingkat: string) => {
-      if (!settings?.travelCosts) return null;
-      
-      const type = sppd.travelType || 'Dalam Daerah';
-      
-      // For Luar Daerah, try to find specific destination match first
-      if (type === 'Luar Daerah') {
-        const sppdProvince = getProvinceFromDestination(sppd.destination);
-        const specificMatch = settings.travelCosts.find(c => {
-          if (c.type !== 'Luar Daerah' || c.tingkat !== tingkat || !c.destination) return false;
-          
-          const costDestLower = c.destination.toLowerCase();
-          
-          // 1. If we have a resolved province and it matches the cost destination
-          if (sppdProvince && (costDestLower === sppdProvince.toLowerCase() || costDestLower.includes(sppdProvince.toLowerCase()))) {
-            return true;
-          }
-          
-          // 2. If the cost destination has a resolved province and it matches sppd's province
-          const costProvince = getProvinceFromDestination(c.destination);
-          if (sppdProvince && costProvince && sppdProvince.toLowerCase() === costProvince.toLowerCase()) {
-            return true;
-          }
-          
-          // 3. Fallback to substring matching (e.g. direct substring match of city name)
-          return sppd.destination.toLowerCase().includes(costDestLower);
-        });
-        if (specificMatch) return specificMatch;
-      }
-
-      // Default match (generic destination or Dalam Daerah)
-      return settings.travelCosts.find(c => 
-        c.type === type && 
-        c.tingkat === tingkat && 
-        (!c.destination || c.destination.trim() === '')
-      );
-    };
-
     // Main Employee Cost
-    const travelCost = findTravelCost(sppd.tingkatBiaya);
+    const travelCost = getSPPDTravelCost(sppd, settings, sppd.tingkatBiaya);
     const dailyAllowance = travelCost?.amount || (sppd.travelType === 'Luar Daerah' ? 430000 : 115000);
     
     const tableBody = [];
@@ -1123,7 +1152,7 @@ export const SPPDList: React.FC = () => {
 
     // Followers
     sppd.followers?.forEach((f, idx) => {
-      const fTravelCost = findTravelCost(f.tingkat);
+      const fTravelCost = getSPPDTravelCost(sppd, settings, f.tingkat);
       const fDailyAllowance = fTravelCost?.amount || (sppd.travelType === 'Luar Daerah' ? 430000 : 115000);
       tableBody.push([
         (idx + 2).toString(),
@@ -1228,32 +1257,9 @@ export const SPPDList: React.FC = () => {
 
     doc.setTextColor(0, 0, 0);
     
-    // Calculate total amount
-    const travelCost = settings?.travelCosts.find(c => {
-      const typeMatch = c.type === (sppd.travelType || 'Dalam Daerah');
-      const tingkatMatch = c.tingkat === sppd.tingkatBiaya;
-      if (!typeMatch || !tingkatMatch) return false;
-      if (c.type === 'Luar Daerah' && c.destination) {
-        const sppdProvince = getProvinceFromDestination(sppd.destination);
-        const costDestLower = c.destination.toLowerCase();
-        
-        // 1. If we have a resolved province and it matches the cost destination
-        if (sppdProvince && (costDestLower === sppdProvince.toLowerCase() || costDestLower.includes(sppdProvince.toLowerCase()))) {
-          return true;
-        }
-        
-        // 2. If the cost destination has a resolved province and it matches sppd's province
-        const costProvince = getProvinceFromDestination(c.destination);
-        if (sppdProvince && costProvince && sppdProvince.toLowerCase() === costProvince.toLowerCase()) {
-          return true;
-        }
-        
-        // 3. Fallback to substring match
-        return sppd.destination.toLowerCase().includes(costDestLower);
-      }
-      return true;
-    });
-    const dailyAllowance = travelCost?.amount || 430000;
+    // Calculate total amount using helper
+    const travelCost = getSPPDTravelCost(sppd, settings, sppd.tingkatBiaya);
+    const dailyAllowance = travelCost?.amount || (sppd.travelType === 'Luar Daerah' ? 430000 : 115000);
     const transportCost = 150000;
     const totalAmount = (dailyAllowance * sppd.duration) + transportCost;
 
@@ -1599,7 +1605,8 @@ export const SPPDList: React.FC = () => {
     const departureDate = new Date(s.departureDate);
     const matchesMonth = exportZipMonth === 'all' || (departureDate.getMonth() + 1).toString() === exportZipMonth;
     const matchesYear = exportZipYear === 'all' || departureDate.getFullYear().toString() === exportZipYear;
-    const matchesBidang = exportZipBidang === 'all' || s.bidang === exportZipBidang;
+    const targetBidang = isAllBidang ? exportZipBidang : userBidang;
+    const matchesBidang = targetBidang === 'all' || s.bidang === targetBidang;
     return matchesMonth && matchesYear && matchesBidang;
   });
 
@@ -1662,7 +1669,8 @@ export const SPPDList: React.FC = () => {
       const monthLabel = exportZipMonth !== 'all' 
         ? format(new Date(parseInt(exportZipYear), parseInt(exportZipMonth) - 1, 1), 'MMMM', { locale: id }) 
         : 'Semua_Bulan';
-      const bidangLabel = exportZipBidang !== 'all' ? `_${exportZipBidang.replace(/\s+/g, '_')}` : '';
+      const effectiveZipBidang = isAllBidang ? exportZipBidang : userBidang;
+      const bidangLabel = effectiveZipBidang && effectiveZipBidang !== 'all' ? `_${effectiveZipBidang.replace(/\s+/g, '_')}` : '';
       const zipFilename = `SPPD_Dokumen_${monthLabel}_${exportZipYear}${bidangLabel}.zip`;
 
       const url = URL.createObjectURL(zipBlob);
@@ -1687,7 +1695,8 @@ export const SPPDList: React.FC = () => {
     const departureDate = new Date(s.departureDate);
     const matchesMonth = bulkDeleteMonth === 'all' || (departureDate.getMonth() + 1).toString() === bulkDeleteMonth;
     const matchesYear = bulkDeleteYear === 'all' || departureDate.getFullYear().toString() === bulkDeleteYear;
-    const matchesBidang = bulkDeleteBidang === 'all' || s.bidang === bulkDeleteBidang;
+    const targetBidang = isAllBidang ? bulkDeleteBidang : userBidang;
+    const matchesBidang = targetBidang === 'all' || s.bidang === targetBidang;
     return matchesMonth && matchesYear && matchesBidang;
   });
 
@@ -1733,7 +1742,8 @@ export const SPPDList: React.FC = () => {
       const departureDate = new Date(s.departureDate);
       const matchesMonth = filterMonth === 'all' || (departureDate.getMonth() + 1).toString() === filterMonth;
       const matchesYear = filterYear === 'all' || departureDate.getFullYear().toString() === filterYear;
-      const matchesBidang = filterBidang === 'all' || s.bidang === filterBidang;
+      const targetBidang = isAllBidang ? filterBidang : userBidang;
+      const matchesBidang = targetBidang === 'all' || s.bidang === targetBidang;
       
       const empName = employees[s.employeeId]?.name || '';
       const searchLower = searchTerm.toLowerCase();
@@ -1772,15 +1782,36 @@ export const SPPDList: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Data SPPD</h1>
-          <p className="text-gray-500 text-sm">Kelola daftar Surat Perintah Perjalanan Dinas.</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900">Data SPPD</h1>
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+              isAllBidang
+                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                : userBidang === 'Sekretariat'
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : userBidang === 'Bidang Sosial'
+                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                : userBidang === 'Bidang PPPA'
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            }`}>
+              <Building2 className="w-3.5 h-3.5" />
+              {isAllBidang ? 'Semua Bidang' : `Akses: ${userBidang}`}
+            </span>
+          </div>
+          <p className="text-gray-500 text-sm mt-1">
+            {isAllBidang 
+              ? 'Kelola daftar Surat Perintah Perjalanan Dinas seluruh bidang.' 
+              : `Kelola daftar Surat Perintah Perjalanan Dinas khusus ${userBidang}.`}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => {
               if (filterMonth !== 'all') setExportZipMonth(filterMonth);
               if (filterYear !== 'all') setExportZipYear(filterYear);
-              if (filterBidang !== 'all') setExportZipBidang(filterBidang);
+              if (isAllBidang && filterBidang !== 'all') setExportZipBidang(filterBidang);
+              else if (!isAllBidang && userBidang) setExportZipBidang(userBidang);
               setIsExportZipModalOpen(true);
             }}
             className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-emerald-200 font-medium text-sm cursor-pointer"
@@ -1793,7 +1824,8 @@ export const SPPDList: React.FC = () => {
             onClick={() => {
               if (filterMonth !== 'all') setBulkDeleteMonth(filterMonth);
               if (filterYear !== 'all') setBulkDeleteYear(filterYear);
-              if (filterBidang !== 'all') setBulkDeleteBidang(filterBidang);
+              if (isAllBidang && filterBidang !== 'all') setBulkDeleteBidang(filterBidang);
+              else if (!isAllBidang && userBidang) setBulkDeleteBidang(userBidang);
               setIsConfirmedDeleteCheckbox(false);
               setIsBulkDeleteModalOpen(true);
             }}
@@ -1855,16 +1887,24 @@ export const SPPDList: React.FC = () => {
               })}
             </select>
 
-            <select
-              value={filterBidang}
-              onChange={(e) => setFilterBidang(e.target.value)}
-              className="bg-gray-50 border-none rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-blue-500 min-w-[120px]"
-            >
-              <option value="all">Semua Bidang</option>
-              <option value="Sekretariat">Sekretariat</option>
-              <option value="Bidang Sosial">Bidang Sosial</option>
-              <option value="Bidang PPPA">Bidang PPPA</option>
-            </select>
+            {isAllBidang ? (
+              <select
+                value={filterBidang}
+                onChange={(e) => setFilterBidang(e.target.value)}
+                className="bg-gray-50 border-none rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-blue-500 min-w-[120px]"
+              >
+                <option value="all">Semua Bidang</option>
+                <option value="Sekretariat">Sekretariat</option>
+                <option value="Bidang Sosial">Bidang Sosial</option>
+                <option value="Bidang PPPA">Bidang PPPA</option>
+                <option value="UPTD PPA">UPTD PPA</option>
+              </select>
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-gray-700 shrink-0">
+                <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                <span>{userBidang}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2409,19 +2449,27 @@ export const SPPDList: React.FC = () => {
                   {/* Select Bidang */}
                   <div className="space-y-1.5 sm:col-span-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      Filter Bidang (Opsional)
+                      Filter Bidang {isAllBidang ? '(Opsional)' : '(Sesuai Akses)'}
                     </label>
-                    <select
-                      disabled={isExportingZip}
-                      value={exportZipBidang}
-                      onChange={(e) => setExportZipBidang(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all disabled:opacity-50"
-                    >
-                      <option value="all">Semua Bidang</option>
-                      <option value="Sekretariat">Sekretariat</option>
-                      <option value="Bidang Sosial">Bidang Sosial</option>
-                      <option value="Bidang PPPA">Bidang PPPA</option>
-                    </select>
+                    {isAllBidang ? (
+                      <select
+                        disabled={isExportingZip}
+                        value={exportZipBidang}
+                        onChange={(e) => setExportZipBidang(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all disabled:opacity-50"
+                      >
+                        <option value="all">Semua Bidang</option>
+                        <option value="Sekretariat">Sekretariat</option>
+                        <option value="Bidang Sosial">Bidang Sosial</option>
+                        <option value="Bidang PPPA">Bidang PPPA</option>
+                        <option value="UPTD PPA">UPTD PPA</option>
+                      </select>
+                    ) : (
+                      <div className="flex items-center gap-2 w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700">
+                        <Building2 className="w-4 h-4 text-emerald-600" />
+                        <span>{userBidang}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -2626,22 +2674,30 @@ export const SPPDList: React.FC = () => {
                   {/* Select Bidang */}
                   <div className="space-y-1.5 sm:col-span-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      Filter Bidang (Opsional)
+                      Filter Bidang {isAllBidang ? '(Opsional)' : '(Sesuai Akses)'}
                     </label>
-                    <select
-                      disabled={isDeletingBulk}
-                      value={bulkDeleteBidang}
-                      onChange={(e) => {
-                        setBulkDeleteBidang(e.target.value);
-                        setIsConfirmedDeleteCheckbox(false);
-                      }}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all disabled:opacity-50"
-                    >
-                      <option value="all">Semua Bidang</option>
-                      <option value="Sekretariat">Sekretariat</option>
-                      <option value="Bidang Sosial">Bidang Sosial</option>
-                      <option value="Bidang PPPA">Bidang PPPA</option>
-                    </select>
+                    {isAllBidang ? (
+                      <select
+                        disabled={isDeletingBulk}
+                        value={bulkDeleteBidang}
+                        onChange={(e) => {
+                          setBulkDeleteBidang(e.target.value);
+                          setIsConfirmedDeleteCheckbox(false);
+                        }}
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all disabled:opacity-50"
+                      >
+                        <option value="all">Semua Bidang</option>
+                        <option value="Sekretariat">Sekretariat</option>
+                        <option value="Bidang Sosial">Bidang Sosial</option>
+                        <option value="Bidang PPPA">Bidang PPPA</option>
+                        <option value="UPTD PPA">UPTD PPA</option>
+                      </select>
+                    ) : (
+                      <div className="flex items-center gap-2 w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700">
+                        <Building2 className="w-4 h-4 text-rose-600" />
+                        <span>{userBidang}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

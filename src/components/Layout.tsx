@@ -169,6 +169,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                       ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
                       : appUser.bidang === 'Bidang PPPA'
                       ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : appUser.bidang === 'UPTD PPA'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : 'bg-blue-50 text-blue-700 border-blue-200'
                   }`}>
                     {appUser.bidang}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Settings as SettingsIcon, 
   Plus, 
@@ -20,7 +20,8 @@ import {
   Clock,
   Mail,
   Building2,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import { 
@@ -50,6 +51,155 @@ const Settings: React.FC = () => {
   const [usersList, setUsersList] = useState<AppUser[]>([]);
   const [activeTab, setActiveTab] = useState<'general' | 'activities' | 'costs' | 'fuel' | 'bendahara' | 'users'>('general');
   const [loading, setLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
+
+  // Debounced saving refs
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingSettingsRef = useRef<AppSettings | null>(null);
+  const isEditingRef = useRef<boolean>(false);
+
+  // Travel Cost Matrix states & constants
+  const DEFAULT_TINGKAT_MATRIX = ['H', 'G', 'F', 'E', 'D', 'C', 'B'];
+  const LUAR_DAERAH_MATRIX_COLS = ['Jawa Tengah', 'Jawa Timur', 'Jawa Barat', 'DKI Jakarta', 'Luar Jawa'];
+  const [newCustomTingkat, setNewCustomTingkat] = useState('');
+  const [customTingkatList, setCustomTingkatList] = useState<string[]>(DEFAULT_TINGKAT_MATRIX);
+
+  useEffect(() => {
+    if (settings?.travelCosts && settings.travelCosts.length > 0) {
+      const existingTingkat: string[] = Array.from(new Set(settings.travelCosts.map(c => c.tingkat).filter((t): t is string => Boolean(t))));
+      // Combine default while preserving H, G, F, E, D, C, B order + any other added custom ones
+      const combined = [...DEFAULT_TINGKAT_MATRIX];
+      existingTingkat.forEach(t => {
+        if (!combined.includes(t)) {
+          combined.push(t);
+        }
+      });
+      setCustomTingkatList(combined);
+    }
+  }, [settings.travelCosts]);
+
+  // Debounced save function
+  const saveSettings = useCallback((newSettings: AppSettings, immediate = false) => {
+    pendingSettingsRef.current = newSettings;
+    isEditingRef.current = true;
+    setSaveStatus('saving');
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    const commitSave = async () => {
+      if (!pendingSettingsRef.current) {
+        setSaveStatus('saved');
+        isEditingRef.current = false;
+        return;
+      }
+      const dataToSave = pendingSettingsRef.current;
+      pendingSettingsRef.current = null;
+      try {
+        await setDoc(doc(db, 'settings', 'general'), dataToSave);
+        setSaveStatus('saved');
+      } catch (error) {
+        console.error("Error saving settings:", error);
+        setSaveStatus('error');
+      } finally {
+        isEditingRef.current = false;
+      }
+    };
+
+    if (immediate) {
+      commitSave();
+    } else {
+      saveTimeoutRef.current = setTimeout(commitSave, 700);
+    }
+  }, []);
+
+  // Flush any pending saves on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current && pendingSettingsRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        setDoc(doc(db, 'settings', 'general'), pendingSettingsRef.current).catch(console.error);
+      }
+    };
+  }, []);
+
+  const getMatrixCostValue = (tingkat: string, type: 'Dalam Daerah' | 'Luar Daerah', destination: string = ''): number => {
+    const match = settings.travelCosts?.find(c => 
+      c.tingkat?.trim().toUpperCase() === tingkat?.trim().toUpperCase() &&
+      c.type === type &&
+      (type === 'Dalam Daerah' ? (!c.destination || c.destination.trim() === '') : (c.destination || '').trim().toLowerCase() === destination.trim().toLowerCase())
+    );
+    return match?.amount ?? 0;
+  };
+
+  const handleMatrixCostChange = (tingkat: string, type: 'Dalam Daerah' | 'Luar Daerah', destination: string, value: number) => {
+    const current = [...(settings.travelCosts || [])];
+    const cleanTingkat = tingkat.trim().toUpperCase();
+    const cleanDest = type === 'Dalam Daerah' ? '' : destination.trim();
+
+    const idx = current.findIndex(c => 
+      c.tingkat?.trim().toUpperCase() === cleanTingkat &&
+      c.type === type &&
+      (type === 'Dalam Daerah' ? (!c.destination || c.destination.trim() === '') : (c.destination || '').trim().toLowerCase() === cleanDest.toLowerCase())
+    );
+
+    const numVal = isNaN(value) ? 0 : value;
+
+    if (idx >= 0) {
+      current[idx] = { ...current[idx], amount: numVal };
+    } else {
+      current.push({
+        tingkat: cleanTingkat,
+        type,
+        destination: cleanDest,
+        amount: numVal
+      });
+    }
+
+    const updated = { ...settings, travelCosts: current };
+    setSettings(updated);
+    saveSettings(updated, false); // Debounced save
+  };
+
+  const handleAddCustomTingkat = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newCustomTingkat.trim().toUpperCase();
+    if (!trimmed) return;
+    if (!customTingkatList.includes(trimmed)) {
+      setCustomTingkatList(prev => [...prev, trimmed]);
+      setNewCustomTingkat('');
+      setActionFeedback(`Tingkat ${trimmed} berhasil ditambahkan ke tabel.`);
+      setTimeout(() => setActionFeedback(null), 3000);
+    } else {
+      setActionFeedback(`Tingkat ${trimmed} sudah ada di tabel.`);
+      setTimeout(() => setActionFeedback(null), 3000);
+    }
+  };
+
+  const handleDeleteTingkatRow = (tingkatToDelete: string) => {
+    const cleanTingkat = tingkatToDelete.trim().toUpperCase();
+    if (confirm(`Hapus seluruh nominal tarif untuk Tingkat ${cleanTingkat}?`)) {
+      const filtered = (settings.travelCosts || []).filter(c => 
+        c.tingkat?.trim().toUpperCase() !== cleanTingkat
+      );
+      setCustomTingkatList(prev => prev.filter(t => t !== cleanTingkat));
+      const updated = { ...settings, travelCosts: filtered };
+      setSettings(updated);
+      saveSettings(updated, true); // Immediate save
+      setActionFeedback(`Tingkat ${cleanTingkat} berhasil dihapus.`);
+      setTimeout(() => setActionFeedback(null), 3000);
+    }
+  };
+
+  const handleResetMatrixTemplate = () => {
+    if (confirm('Kembalikan baris tabel ke standar Tingkat H, G, F, E, D, C, B?')) {
+      setCustomTingkatList(DEFAULT_TINGKAT_MATRIX);
+      setActionFeedback('Tabel telah disesuaikan ke format standar (H s/d B).');
+      setTimeout(() => setActionFeedback(null), 3000);
+    }
+  };
 
   // User tab states
   const [userSearchTerm, setUserSearchTerm] = useState('');
@@ -66,8 +216,15 @@ const Settings: React.FC = () => {
   useEffect(() => {
     const unsubSettings = onSnapshot(doc(db, 'settings', 'general'), (doc) => {
       if (doc.exists()) {
-        setSettings(doc.data() as AppSettings);
+        const data = doc.data() as AppSettings;
+        // Only update from cloud if user is not actively typing/debouncing
+        if (!isEditingRef.current && !pendingSettingsRef.current) {
+          setSettings(data);
+        }
       }
+      setLoading(false);
+    }, (error) => {
+      console.error("Error loading settings:", error);
       setLoading(false);
     });
 
@@ -86,21 +243,15 @@ const Settings: React.FC = () => {
     };
   }, []);
 
-  const saveSettings = async (newSettings: AppSettings) => {
-    try {
-      await setDoc(doc(db, 'settings', 'general'), newSettings);
-    } catch (error) {
-      console.error("Error saving settings:", error);
-    }
-  };
-
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        saveSettings({ ...settings, logo: base64String });
+        const updated = { ...settings, logo: base64String };
+        setSettings(updated);
+        saveSettings(updated, true);
       };
       reader.readAsDataURL(file);
     }
@@ -108,50 +259,68 @@ const Settings: React.FC = () => {
 
   const addLegalBasis = () => {
     const newBasis = [...settings.legalBasis, ''];
-    saveSettings({ ...settings, legalBasis: newBasis });
+    const updated = { ...settings, legalBasis: newBasis };
+    setSettings(updated);
+    saveSettings(updated, true);
   };
 
   const updateLegalBasis = (index: number, value: string) => {
     const newBasis = [...settings.legalBasis];
     newBasis[index] = value;
-    saveSettings({ ...settings, legalBasis: newBasis });
+    const updated = { ...settings, legalBasis: newBasis };
+    setSettings(updated);
+    saveSettings(updated, false); // debounced
   };
 
   const removeLegalBasis = (index: number) => {
     const newBasis = settings.legalBasis.filter((_, i) => i !== index);
-    saveSettings({ ...settings, legalBasis: newBasis });
+    const updated = { ...settings, legalBasis: newBasis };
+    setSettings(updated);
+    saveSettings(updated, true);
   };
 
   const addTravelCost = () => {
     const newCosts = [...settings.travelCosts, { tingkat: '', type: 'Dalam Daerah', destination: '', amount: 0 }];
-    saveSettings({ ...settings, travelCosts: newCosts as TravelCost[] });
+    const updated = { ...settings, travelCosts: newCosts as TravelCost[] };
+    setSettings(updated);
+    saveSettings(updated, true);
   };
 
   const updateTravelCost = (index: number, field: keyof TravelCost, value: any) => {
     const newCosts = [...settings.travelCosts];
     newCosts[index] = { ...newCosts[index], [field]: value };
-    saveSettings({ ...settings, travelCosts: newCosts });
+    const updated = { ...settings, travelCosts: newCosts };
+    setSettings(updated);
+    saveSettings(updated, false); // debounced
   };
 
   const removeTravelCost = (index: number) => {
     const newCosts = settings.travelCosts.filter((_, i) => i !== index);
-    saveSettings({ ...settings, travelCosts: newCosts });
+    const updated = { ...settings, travelCosts: newCosts };
+    setSettings(updated);
+    saveSettings(updated, true);
   };
 
   const addFuelPrice = () => {
     const newPrices = [...settings.fuelPrices, { type: '', price: 0 }];
-    saveSettings({ ...settings, fuelPrices: newPrices as FuelPrice[] });
+    const updated = { ...settings, fuelPrices: newPrices as FuelPrice[] };
+    setSettings(updated);
+    saveSettings(updated, true);
   };
 
   const updateFuelPrice = (index: number, field: keyof FuelPrice, value: any) => {
     const newPrices = [...settings.fuelPrices];
     newPrices[index] = { ...newPrices[index], [field]: value };
-    saveSettings({ ...settings, fuelPrices: newPrices });
+    const updated = { ...settings, fuelPrices: newPrices };
+    setSettings(updated);
+    saveSettings(updated, false); // debounced
   };
 
   const removeFuelPrice = (index: number) => {
     const newPrices = settings.fuelPrices.filter((_, i) => i !== index);
-    saveSettings({ ...settings, fuelPrices: newPrices });
+    const updated = { ...settings, fuelPrices: newPrices };
+    setSettings(updated);
+    saveSettings(updated, true);
   };
 
   const handleAddActivity = async (e: React.FormEvent) => {
@@ -173,7 +342,7 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleUpdateUserBidang = async (userId: string, newBidang: 'Semua Bidang' | 'Sekretariat' | 'Bidang Sosial' | 'Bidang PPPA') => {
+  const handleUpdateUserBidang = async (userId: string, newBidang: 'Semua Bidang' | 'Sekretariat' | 'Bidang Sosial' | 'Bidang PPPA' | 'UPTD PPA') => {
     try {
       await updateDoc(doc(db, 'users', userId), { bidang: newBidang });
       setActionFeedback(`Hak akses bidang berhasil diubah ke: ${newBidang}`);
@@ -276,7 +445,7 @@ const Settings: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="p-3 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
             <SettingsIcon className="w-8 h-8" />
@@ -285,6 +454,28 @@ const Settings: React.FC = () => {
             <h1 className="text-3xl font-black text-gray-900 tracking-tight">Utilitas & Pengaturan</h1>
             <p className="text-gray-500 font-medium">Konfigurasi sistem, akun pengguna, dan data referensi</p>
           </div>
+        </div>
+
+        {/* Real-time Save Status Indicator */}
+        <div className="flex items-center gap-2">
+          {saveStatus === 'saving' && (
+            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 text-amber-700 rounded-full border border-amber-200 text-xs font-semibold animate-pulse">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+              <span>Menyimpan ke Cloud...</span>
+            </div>
+          )}
+          {saveStatus === 'saved' && (
+            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200 text-xs font-semibold">
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Tersimpan di Cloud</span>
+            </div>
+          )}
+          {saveStatus === 'error' && (
+            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-red-50 text-red-700 rounded-full border border-red-200 text-xs font-semibold">
+              <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+              <span>Gagal menyimpan</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -448,92 +639,165 @@ const Settings: React.FC = () => {
 
               {activeTab === 'costs' && (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                      <DollarSign className="w-5 h-5 text-blue-600" />
-                      Nominal Biaya Perjalanan Dinas
-                    </h3>
-                    <button onClick={addTravelCost} className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors">
-                      <Plus className="w-5 h-5" />
-                    </button>
+                  {/* Feedback Toast */}
+                  <AnimatePresence>
+                    {actionFeedback && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="flex items-center gap-3 p-4 bg-emerald-50 text-emerald-800 rounded-2xl border border-emerald-200 text-sm font-semibold shadow-sm"
+                      >
+                        <Check className="w-5 h-5 text-emerald-600 shrink-0" />
+                        <span>{actionFeedback}</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Header & Actions */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <DollarSign className="w-6 h-6 text-blue-600" />
+                        Tabel Tarif Biaya Perjalanan Dinas
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Konfigurasi matriks uang harian berdasarkan Tingkat dan Wilayah Tujuan Perjalanan.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <form onSubmit={handleAddCustomTingkat} className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={newCustomTingkat}
+                          onChange={(e) => setNewCustomTingkat(e.target.value)}
+                          placeholder="Tingkat baru (cth: A)"
+                          className="w-40 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold uppercase focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          className="px-3 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-xl text-xs flex items-center gap-1 transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Tambah
+                        </button>
+                      </form>
+
+                      <button
+                        onClick={handleResetMatrixTemplate}
+                        className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs transition-colors"
+                        title="Kembalikan ke baris standar H s/d B"
+                      >
+                        Format Standar (H - B)
+                      </button>
+                    </div>
                   </div>
-                  <div className="space-y-4">
-                    {settings.travelCosts.map((cost, idx) => (
-                      <div key={idx} className={`grid grid-cols-1 ${cost.type === 'Luar Daerah' ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-4 p-4 bg-gray-50 rounded-2xl relative group`}>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tingkat</label>
-                          <input
-                            value={cost.tingkat}
-                            onChange={(e) => updateTravelCost(idx, 'tingkat', e.target.value)}
-                            placeholder="A, B, C..."
-                            className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Jenis</label>
-                          <select
-                            value={cost.type}
-                            onChange={(e) => updateTravelCost(idx, 'type', e.target.value)}
-                            className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
-                          >
-                            <option value="Dalam Daerah">Dalam Daerah</option>
-                            <option value="Luar Daerah">Luar Daerah</option>
-                          </select>
-                        </div>
-                        {cost.type === 'Luar Daerah' && (
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Provinsi / Tujuan</label>
-                            <select
-                              value={['DKI Jakarta', 'Jawa Barat', 'Jawa Tengah', 'DI Yogyakarta', 'Jawa Timur', 'Banten'].includes(cost.destination || '') ? cost.destination : 'Lainnya'}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === 'Lainnya') {
-                                  updateTravelCost(idx, 'destination', '');
-                                } else {
-                                  updateTravelCost(idx, 'destination', val);
-                                }
-                              }}
-                              className="w-full px-4 py-2 bg-white border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
-                            >
-                              <option value="DKI Jakarta">Provinsi DKI Jakarta</option>
-                              <option value="Jawa Barat">Provinsi Jawa Barat</option>
-                              <option value="Jawa Tengah">Provinsi Jawa Tengah</option>
-                              <option value="DI Yogyakarta">Provinsi DI Yogyakarta</option>
-                              <option value="Jawa Timur">Provinsi Jawa Timur</option>
-                              <option value="Banten">Provinsi Banten</option>
-                              <option value="Lainnya">Input Manual / Lainnya</option>
-                            </select>
-                            {(!['DKI Jakarta', 'Jawa Barat', 'Jawa Tengah', 'DI Yogyakarta', 'Jawa Timur', 'Banten'].includes(cost.destination || '')) && (
-                              <input
-                                value={cost.destination || ''}
-                                onChange={(e) => updateTravelCost(idx, 'destination', e.target.value)}
-                                placeholder="Masukkan Provinsi/Tujuan..."
-                                className="w-full px-4 py-2 mt-1.5 bg-white border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
-                              />
-                            )}
-                          </div>
-                        )}
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Nominal (Rp)</label>
-                          <input
-                            type="number"
-                            value={cost.amount}
-                            onChange={(e) => updateTravelCost(idx, 'amount', Number(e.target.value))}
-                            className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
-                          />
-                        </div>
-                        <div className="flex items-end pb-1">
-                          <button onClick={() => removeTravelCost(idx)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors">
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+
+                  {/* Matrix Table */}
+                  <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+                    <table className="w-full text-center text-sm border-collapse min-w-[780px]">
+                      <thead>
+                        <tr className="bg-gray-100 text-gray-900 font-bold border-b border-gray-200 text-xs uppercase tracking-wider">
+                          <th rowSpan={2} className="px-4 py-3.5 border-r border-gray-200 w-24 text-center bg-gray-100">
+                            Tingkat
+                          </th>
+                          <th rowSpan={2} className="px-4 py-3.5 border-r border-gray-200 w-44 text-center bg-gray-100">
+                            Dalam Daerah
+                          </th>
+                          <th colSpan={5} className="px-4 py-2 text-center border-b border-gray-200 bg-blue-50/70 text-blue-900">
+                            Luar Daerah
+                          </th>
+                          <th rowSpan={2} className="px-3 py-3.5 w-16 text-center bg-gray-100">
+                            Aksi
+                          </th>
+                        </tr>
+                        <tr className="bg-blue-50/40 text-blue-950 font-bold text-xs border-b border-gray-200">
+                          {LUAR_DAERAH_MATRIX_COLS.map((col) => (
+                            <th key={col} className="px-3 py-2.5 border-r border-gray-200 min-w-[130px] text-center">
+                              {col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {customTingkatList.map((tingkat) => {
+                          return (
+                            <tr key={tingkat} className="hover:bg-blue-50/20 transition-colors">
+                              {/* Tingkat Label */}
+                              <td className="px-4 py-3 border-r border-gray-200 font-black text-gray-900 bg-gray-50/60 text-base">
+                                <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-gray-200 text-gray-800 shadow-xs">
+                                  {tingkat}
+                                </span>
+                              </td>
+
+                              {/* Dalam Daerah */}
+                              <td className="p-2 border-r border-gray-200 bg-white">
+                                <div className="relative flex items-center">
+                                  <span className="absolute left-2.5 text-[11px] font-semibold text-gray-400 select-none">Rp</span>
+                                  <input
+                                    type="text"
+                                    value={getMatrixCostValue(tingkat, 'Dalam Daerah', '') ? getMatrixCostValue(tingkat, 'Dalam Daerah', '').toLocaleString('id-ID') : ''}
+                                    onChange={(e) => {
+                                      const raw = e.target.value.replace(/\D/g, '');
+                                      handleMatrixCostChange(tingkat, 'Dalam Daerah', '', raw ? parseInt(raw, 10) : 0);
+                                    }}
+                                    placeholder="0"
+                                    className="w-full pl-8 pr-2.5 py-2 bg-gray-50/50 hover:bg-white focus:bg-white border border-gray-200 focus:border-blue-500 rounded-xl text-xs font-bold text-right text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                                  />
+                                </div>
+                              </td>
+
+                              {/* 5 Luar Daerah Columns: Jawa Tengah, Jawa Timur, Jawa Barat, DKI Jakarta, Luar Jawa */}
+                              {LUAR_DAERAH_MATRIX_COLS.map((destCol) => {
+                                const val = getMatrixCostValue(tingkat, 'Luar Daerah', destCol);
+                                return (
+                                  <td key={destCol} className="p-2 border-r border-gray-200 bg-white">
+                                    <div className="relative flex items-center">
+                                      <span className="absolute left-2.5 text-[11px] font-semibold text-gray-400 select-none">Rp</span>
+                                      <input
+                                        type="text"
+                                        value={val ? val.toLocaleString('id-ID') : ''}
+                                        onChange={(e) => {
+                                          const raw = e.target.value.replace(/\D/g, '');
+                                          handleMatrixCostChange(tingkat, 'Luar Daerah', destCol, raw ? parseInt(raw, 10) : 0);
+                                        }}
+                                        placeholder="0"
+                                        className="w-full pl-8 pr-2.5 py-2 bg-gray-50/50 hover:bg-white focus:bg-white border border-gray-200 focus:border-blue-500 rounded-xl text-xs font-bold text-right text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                                      />
+                                    </div>
+                                  </td>
+                                );
+                              })}
+
+                              {/* Aksi / Delete Row */}
+                              <td className="px-2 py-2 text-center bg-gray-50/30">
+                                <button
+                                  onClick={() => handleDeleteTingkatRow(tingkat)}
+                                  title={`Hapus baris Tingkat ${tingkat}`}
+                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 mt-4">
-                    <p className="text-sm text-blue-700 font-semibold leading-relaxed">
-                      💡 Info Otomatis: Untuk Perjalanan Luar Daerah, sistem secara otomatis memetakan nama kota/kabupaten tujuan di SPPD ke provinsinya (contoh: Semarang, Pati, Kudus masuk Provinsi Jawa Tengah). Nominal biaya dinas akan otomatis disesuaikan berdasarkan ketentuan provinsi tersebut.
-                    </p>
+
+                  {/* Info Box */}
+                  <div className="p-4 bg-blue-50/70 rounded-2xl border border-blue-100 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                    <div className="text-xs text-blue-900 font-medium space-y-1">
+                      <p className="font-bold">Otomatisasi Sistem Perhitungan SPPD:</p>
+                      <ul className="list-disc list-inside space-y-0.5 text-blue-800">
+                        <li><strong>Dalam Daerah:</strong> Menggunakan nilai dari kolom <em>Dalam Daerah</em> sesuai Tingkat biaya pegawai.</li>
+                        <li><strong>Luar Daerah:</strong> Sistem mendeteksi provinsi tujuan (misal Semarang/Solo ➔ <em>Jawa Tengah</em>, Surabaya ➔ <em>Jawa Timur</em>, Bandung/Bekasi ➔ <em>Jawa Barat</em>, Jakarta ➔ <em>DKI Jakarta</em>, provinsi luar pulau ➔ <em>Luar Jawa</em>).</li>
+                        <li>Nilai nominal tersimpan otomatis ke database Firestore secara <em>real-time</em> saat Anda mengetik.</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               )}
@@ -594,7 +858,7 @@ const Settings: React.FC = () => {
                     </h3>
                   </div>
                   <div className="grid grid-cols-1 gap-6">
-                    {['Sekretariat', 'Bidang Sosial', 'Bidang PPPA'].map((bidang) => (
+                    {['Sekretariat', 'Bidang Sosial', 'Bidang PPPA', 'UPTD PPA'].map((bidang) => (
                       <div key={bidang} className="p-6 bg-gray-50 rounded-2xl space-y-4">
                         <h4 className="font-bold text-gray-900">{bidang}</h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -603,10 +867,12 @@ const Settings: React.FC = () => {
                             <input
                               value={settings.bendaharaPembantu?.[bidang]?.title || ''}
                               onChange={(e) => {
-                                const newBendahara = { ...settings.bendaharaPembantu };
+                                const newBendahara = { ...(settings.bendaharaPembantu || {}) };
                                 if (!newBendahara[bidang]) newBendahara[bidang] = { name: '', nip: '', title: '' };
-                                newBendahara[bidang].title = e.target.value;
-                                saveSettings({ ...settings, bendaharaPembantu: newBendahara });
+                                newBendahara[bidang] = { ...newBendahara[bidang], title: e.target.value };
+                                const updated = { ...settings, bendaharaPembantu: newBendahara };
+                                setSettings(updated);
+                                saveSettings(updated, false);
                               }}
                               placeholder="Contoh: PEMBANTU BIDANG SOSIAL"
                               className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
@@ -617,10 +883,12 @@ const Settings: React.FC = () => {
                             <input
                               value={settings.bendaharaPembantu?.[bidang]?.name || ''}
                               onChange={(e) => {
-                                const newBendahara = { ...settings.bendaharaPembantu };
+                                const newBendahara = { ...(settings.bendaharaPembantu || {}) };
                                 if (!newBendahara[bidang]) newBendahara[bidang] = { name: '', nip: '', title: '' };
-                                newBendahara[bidang].name = e.target.value;
-                                saveSettings({ ...settings, bendaharaPembantu: newBendahara });
+                                newBendahara[bidang] = { ...newBendahara[bidang], name: e.target.value };
+                                const updated = { ...settings, bendaharaPembantu: newBendahara };
+                                setSettings(updated);
+                                saveSettings(updated, false);
                               }}
                               placeholder="Nama Lengkap..."
                               className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
@@ -631,10 +899,12 @@ const Settings: React.FC = () => {
                             <input
                               value={settings.bendaharaPembantu?.[bidang]?.nip || ''}
                               onChange={(e) => {
-                                const newBendahara = { ...settings.bendaharaPembantu };
+                                const newBendahara = { ...(settings.bendaharaPembantu || {}) };
                                 if (!newBendahara[bidang]) newBendahara[bidang] = { name: '', nip: '', title: '' };
-                                newBendahara[bidang].nip = e.target.value;
-                                saveSettings({ ...settings, bendaharaPembantu: newBendahara });
+                                newBendahara[bidang] = { ...newBendahara[bidang], nip: e.target.value };
+                                const updated = { ...settings, bendaharaPembantu: newBendahara };
+                                setSettings(updated);
+                                saveSettings(updated, false);
                               }}
                               placeholder="NIP..."
                               className="w-full px-4 py-2 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
@@ -685,7 +955,7 @@ const Settings: React.FC = () => {
                   </div>
 
                   {/* Stat Cards */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total User</p>
                       <p className="text-2xl font-black text-gray-900 mt-1">{usersList.length}</p>
@@ -706,6 +976,12 @@ const Settings: React.FC = () => {
                       <p className="text-xs font-bold text-rose-700 uppercase tracking-wider">Bidang PPPA</p>
                       <p className="text-2xl font-black text-rose-900 mt-1">
                         {usersList.filter(u => u.bidang === 'Bidang PPPA').length}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-100/60 col-span-2 md:col-span-1">
+                      <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">UPTD PPA</p>
+                      <p className="text-2xl font-black text-emerald-900 mt-1">
+                        {usersList.filter(u => u.bidang === 'UPTD PPA').length}
                       </p>
                     </div>
                   </div>
@@ -733,6 +1009,7 @@ const Settings: React.FC = () => {
                         <option value="Sekretariat">Sekretariat</option>
                         <option value="Bidang Sosial">Bidang Sosial</option>
                         <option value="Bidang PPPA">Bidang PPPA</option>
+                        <option value="UPTD PPA">UPTD PPA</option>
                       </select>
                       <select
                         value={userRoleFilter}
@@ -831,6 +1108,8 @@ const Settings: React.FC = () => {
                                           ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
                                           : u.bidang === 'Bidang PPPA'
                                           ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                          : u.bidang === 'UPTD PPA'
+                                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                           : 'bg-blue-50 text-blue-800 border-blue-200'
                                       }`}
                                     >
@@ -838,6 +1117,7 @@ const Settings: React.FC = () => {
                                       <option value="Sekretariat">Sekretariat</option>
                                       <option value="Bidang Sosial">Bidang Sosial</option>
                                       <option value="Bidang PPPA">Bidang PPPA</option>
+                                      <option value="UPTD PPA">UPTD PPA</option>
                                     </select>
                                   </div>
                                 </td>
@@ -959,6 +1239,7 @@ const Settings: React.FC = () => {
                     <option value="Sekretariat">Sekretariat</option>
                     <option value="Bidang Sosial">Bidang Sosial</option>
                     <option value="Bidang PPPA">Bidang PPPA</option>
+                    <option value="UPTD PPA">UPTD PPA</option>
                   </select>
                 </div>
 

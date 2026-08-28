@@ -55,7 +55,7 @@
           }
         },
         "subActivityId": { "type": "string", "description": "ID Sub Kegiatan" },
-        "bidang": { "type": "string", "enum": ["Sekretariat", "Bidang Sosial", "Bidang PPPA"], "description": "Bidang / Bendahara Pembantu Bidang" },
+        "bidang": { "type": "string", "enum": ["Sekretariat", "Bidang Sosial", "Bidang PPPA", "UPTD PPA"], "description": "Bidang / Bendahara Pembantu Bidang" },
         "otherNotes": { "type": "string", "description": "Keterangan lain-lain" },
         "createdAt": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["draft", "active", "completed"] },
@@ -105,7 +105,7 @@
         "displayName": { "type": "string", "description": "Nama tampilan pengguna" },
         "photoURL": { "type": "string", "description": "URL foto profil" },
         "role": { "type": "string", "enum": ["Admin", "Operator", "Pegawai"], "description": "Peran pengguna" },
-        "bidang": { "type": "string", "enum": ["Semua Bidang", "Sekretariat", "Bidang Sosial", "Bidang PPPA"], "description": "Bidang kerja pengguna" },
+        "bidang": { "type": "string", "enum": ["Semua Bidang", "Sekretariat", "Bidang Sosial", "Bidang PPPA", "UPTD PPA"], "description": "Bidang kerja pengguna" },
         "lastLoginAt": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" }
       },

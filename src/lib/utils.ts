@@ -58,3 +58,14 @@ export function getProvinceFromDestination(destination: string): string | null {
   return null;
 }
 
+export function isDestinationOutsideJava(destination: string): boolean {
+  if (!destination) return false;
+  const destLower = destination.toLowerCase();
+  if (destLower.includes('luar jawa') || destLower.includes('luar pulau')) return true;
+  
+  const province = getProvinceFromDestination(destination);
+  if (province) return false; // Is in Java list (Jateng, Jatim, Jabar, DKI, DIY, Banten)
+  
+  return true;
+}
+
