@@ -1,3 +1,15 @@
+export interface AppUser {
+  id?: string;
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+  role: 'Admin' | 'Operator' | 'Pegawai';
+  bidang: 'Semua Bidang' | 'Sekretariat' | 'Bidang Sosial' | 'Bidang PPPA';
+  lastLoginAt?: string;
+  createdAt?: string;
+}
+
 export interface TravelCost {
   tingkat: string;
   type: 'Dalam Daerah' | 'Luar Daerah';

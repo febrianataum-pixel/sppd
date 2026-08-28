@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { auth } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
 import { cn } from '../lib/utils';
+import { useAuth } from '../lib/AuthProvider';
 
 interface SidebarItemProps {
   to: string;
@@ -58,6 +59,7 @@ const SidebarItem = ({ to, icon: Icon, label, onClick, isCollapsed }: SidebarIte
 );
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { appUser } = useAuth();
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
@@ -157,12 +159,32 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           
           <div className="flex items-center gap-4 ml-auto">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-semibold text-gray-900">{auth.currentUser?.displayName || 'Admin'}</p>
-              <p className="text-xs text-gray-500">{auth.currentUser?.email}</p>
+              <div className="flex items-center justify-end gap-2">
+                <p className="text-sm font-semibold text-gray-900">{appUser?.displayName || auth.currentUser?.displayName || 'Pengguna'}</p>
+                {appUser?.bidang && (
+                  <span className={`text-[10px] px-2 py-0.5 font-bold rounded-full border ${
+                    appUser.bidang === 'Sekretariat'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : appUser.bidang === 'Bidang Sosial'
+                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                      : appUser.bidang === 'Bidang PPPA'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-blue-50 text-blue-700 border-blue-200'
+                  }`}>
+                    {appUser.bidang}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-2 text-xs text-gray-500">
+                <span>{auth.currentUser?.email}</span>
+                {appUser?.role && (
+                  <span className="text-[10px] text-gray-400 font-semibold">• {appUser.role}</span>
+                )}
+              </div>
             </div>
-            <div className="w-10 h-10 bg-gray-100 rounded-full border-2 border-white shadow-sm overflow-hidden">
+            <div className="w-10 h-10 bg-gray-100 rounded-full border-2 border-white shadow-sm overflow-hidden shrink-0">
               <img 
-                src={auth.currentUser?.photoURL || `https://ui-avatars.com/api/?name=${auth.currentUser?.displayName || 'Admin'}&background=random`} 
+                src={auth.currentUser?.photoURL || `https://ui-avatars.com/api/?name=${auth.currentUser?.displayName || 'User'}&background=random`} 
                 alt="Profile"
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"

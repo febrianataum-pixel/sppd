@@ -94,9 +94,26 @@
           }
         }
       }
+    },
+    "AppUser": {
+      "title": "App User",
+      "description": "Data profil pengguna aplikasi dan hak akses bidang",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "Alamat email pengguna" },
+        "displayName": { "type": "string", "description": "Nama tampilan pengguna" },
+        "photoURL": { "type": "string", "description": "URL foto profil" },
+        "role": { "type": "string", "enum": ["Admin", "Operator", "Pegawai"], "description": "Peran pengguna" },
+        "bidang": { "type": "string", "enum": ["Semua Bidang", "Sekretariat", "Bidang Sosial", "Bidang PPPA"], "description": "Bidang kerja pengguna" },
+        "lastLoginAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "bidang"]
     }
   },
   "firestore": {
+    "/users": { "schema": "AppUser", "description": "Collection of registered application users" },
     "/employees": { "schema": "Employee", "description": "Collection of employees" },
     "/sub_activities": { "schema": "SubActivity", "description": "Collection of sub activities" },
     "/sppd": { "schema": "SPPD", "description": "Collection of SPPD documents" },
