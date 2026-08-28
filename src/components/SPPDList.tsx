@@ -19,8 +19,14 @@ import {
   ArrowUpDown,
   Image as ImageIcon,
   FolderTree,
-  Banknote
+  Banknote,
+  Archive,
+  Loader2,
+  PackageCheck,
+  AlertTriangle,
+  CalendarX
 } from 'lucide-react';
+import JSZip from 'jszip';
 import { 
   collection, 
   onSnapshot, 
@@ -29,7 +35,8 @@ import {
   query,
   orderBy,
   getDoc,
-  updateDoc
+  updateDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { SPPD, Employee, SubActivity, OperationType, AppSettings } from '../types';
@@ -61,6 +68,23 @@ export const SPPDList: React.FC = () => {
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
   const [filterBidang, setFilterBidang] = useState<string>('all');
+  
+  // Export ZIP State
+  const [isExportZipModalOpen, setIsExportZipModalOpen] = useState(false);
+  const [exportZipMonth, setExportZipMonth] = useState<string>((new Date().getMonth() + 1).toString());
+  const [exportZipYear, setExportZipYear] = useState<string>(new Date().getFullYear().toString());
+  const [exportZipBidang, setExportZipBidang] = useState<string>('all');
+  const [isExportingZip, setIsExportingZip] = useState(false);
+  const [exportProgress, setExportProgress] = useState<{ current: number; total: number; status: string }>({ current: 0, total: 0, status: '' });
+  
+  // Bulk Delete State
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [bulkDeleteMonth, setBulkDeleteMonth] = useState<string>((new Date().getMonth() + 1).toString());
+  const [bulkDeleteYear, setBulkDeleteYear] = useState<string>(new Date().getFullYear().toString());
+  const [bulkDeleteBidang, setBulkDeleteBidang] = useState<string>('all');
+  const [isConfirmedDeleteCheckbox, setIsConfirmedDeleteCheckbox] = useState(false);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({
     key: 'createdAt',
     direction: 'desc'
@@ -1512,7 +1536,7 @@ export const SPPDList: React.FC = () => {
     doc.text(amountText, rpBoxX + 15, rpBoxY + 10);
   };
 
-  const handlePreview = (sppd: SPPD) => {
+  const createCombinedSPPDDoc = (sppd: SPPD) => {
     const doc = new jsPDF();
     const employee = employees[sppd.employeeId];
     
@@ -1530,14 +1554,12 @@ export const SPPDList: React.FC = () => {
     renderSuratTugasContent(doc, sppd);
     
     // Laporan Hasil
-    if (sppd.status === 'completed') {
-      doc.addPage();
-      renderLaporanHasilContent(doc, sppd);
-      
-      // Dokumentasi
-      doc.addPage();
-      renderDokumentasiContent(doc, sppd);
-    }
+    doc.addPage();
+    renderLaporanHasilContent(doc, sppd);
+    
+    // Dokumentasi
+    doc.addPage();
+    renderDokumentasiContent(doc, sppd);
     
     // Rincian Biaya
     doc.addPage();
@@ -1555,6 +1577,11 @@ export const SPPDList: React.FC = () => {
       renderKwitansiBBMContent(doc, sppd);
     }
 
+    return doc;
+  };
+
+  const handlePreview = (sppd: SPPD) => {
+    const doc = createCombinedSPPDDoc(sppd);
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
     
@@ -1566,6 +1593,131 @@ export const SPPDList: React.FC = () => {
     setPreviewFilename(filename);
     setPreviewUrl(url);
     setIsPreviewModalOpen(true);
+  };
+
+  const exportMatchingList = sppdList.filter((s) => {
+    const departureDate = new Date(s.departureDate);
+    const matchesMonth = exportZipMonth === 'all' || (departureDate.getMonth() + 1).toString() === exportZipMonth;
+    const matchesYear = exportZipYear === 'all' || departureDate.getFullYear().toString() === exportZipYear;
+    const matchesBidang = exportZipBidang === 'all' || s.bidang === exportZipBidang;
+    return matchesMonth && matchesYear && matchesBidang;
+  });
+
+  const handleExportZip = async () => {
+    if (exportMatchingList.length === 0) return;
+
+    setIsExportingZip(true);
+    setExportProgress({ current: 0, total: exportMatchingList.length, status: 'Menyiapkan berkas dokumen SPPD...' });
+
+    try {
+      const zip = new JSZip();
+
+      for (let i = 0; i < exportMatchingList.length; i++) {
+        const sppd = exportMatchingList[i];
+        const employee = employees[sppd.employeeId];
+        const empName = employee?.name || 'Pegawai';
+        
+        setExportProgress({ 
+          current: i + 1, 
+          total: exportMatchingList.length, 
+          status: `Membuat PDF (${i + 1}/${exportMatchingList.length}): ${empName} - ${sppd.destination}` 
+        });
+
+        // Small async pause to ensure UI re-renders and stays responsive
+        await new Promise((resolve) => setTimeout(resolve, 30));
+
+        const doc = createCombinedSPPDDoc(sppd);
+        const pdfBlob = doc.output('blob');
+
+        const formattedDate = format(new Date(sppd.departureDate), 'yyyyMMdd');
+        const cleanEmpName = empName.replace(/[\/\\?%*:|"<>]/g, '_').trim();
+        const safeDestination = sppd.destination.replace(/[\/\\?%*:|"<>]/g, '_').trim();
+        
+        const baseFilename = `SPPD_${formattedDate}_${cleanEmpName}_${safeDestination}.pdf`;
+        
+        let uniqueFilename = baseFilename;
+        let counter = 1;
+        while (zip.file(uniqueFilename)) {
+          uniqueFilename = `SPPD_${formattedDate}_${cleanEmpName}_${safeDestination}_(${counter}).pdf`;
+          counter++;
+        }
+
+        zip.file(uniqueFilename, pdfBlob);
+      }
+
+      setExportProgress({ 
+        current: exportMatchingList.length, 
+        total: exportMatchingList.length, 
+        status: 'Mengompres seluruh dokumen ke dalam arsip ZIP...' 
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const zipBlob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+
+      const monthLabel = exportZipMonth !== 'all' 
+        ? format(new Date(parseInt(exportZipYear), parseInt(exportZipMonth) - 1, 1), 'MMMM', { locale: id }) 
+        : 'Semua_Bulan';
+      const bidangLabel = exportZipBidang !== 'all' ? `_${exportZipBidang.replace(/\s+/g, '_')}` : '';
+      const zipFilename = `SPPD_Dokumen_${monthLabel}_${exportZipYear}${bidangLabel}.zip`;
+
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = zipFilename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setIsExportZipModalOpen(false);
+    } catch (error) {
+      console.error('Error generating ZIP:', error);
+      alert('Gagal membuat arsip ZIP. Silakan coba lagi.');
+    } finally {
+      setIsExportingZip(false);
+    }
+  };
+
+  const bulkDeleteMatchingList = sppdList.filter((s) => {
+    const departureDate = new Date(s.departureDate);
+    const matchesMonth = bulkDeleteMonth === 'all' || (departureDate.getMonth() + 1).toString() === bulkDeleteMonth;
+    const matchesYear = bulkDeleteYear === 'all' || departureDate.getFullYear().toString() === bulkDeleteYear;
+    const matchesBidang = bulkDeleteBidang === 'all' || s.bidang === bulkDeleteBidang;
+    return matchesMonth && matchesYear && matchesBidang;
+  });
+
+  const handleExecuteBulkDelete = async () => {
+    if (bulkDeleteMatchingList.length === 0 || !isConfirmedDeleteCheckbox || isDeletingBulk) return;
+
+    setIsDeletingBulk(true);
+    try {
+      const BATCH_SIZE = 400;
+      const items = [...bulkDeleteMatchingList];
+
+      for (let i = 0; i < items.length; i += BATCH_SIZE) {
+        const chunk = items.slice(i, i + BATCH_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((item) => {
+          if (item.id) {
+            batch.delete(doc(db, 'sppd', item.id));
+          }
+        });
+        await batch.commit();
+      }
+
+      setIsConfirmedDeleteCheckbox(false);
+      setIsBulkDeleteModalOpen(false);
+    } catch (error) {
+      console.error('Error bulk deleting SPPD:', error);
+      handleFirestoreError(error as any, OperationType.DELETE, 'sppd');
+    } finally {
+      setIsDeletingBulk(false);
+    }
   };
 
   const handleSort = (key: string) => {
@@ -1623,13 +1775,42 @@ export const SPPDList: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Data SPPD</h1>
           <p className="text-gray-500 text-sm">Kelola daftar Surat Perintah Perjalanan Dinas.</p>
         </div>
-        <button
-          onClick={handleAdd}
-          className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-blue-200 font-medium"
-        >
-          <Plus className="w-5 h-5" />
-          Tambah SPPD
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => {
+              if (filterMonth !== 'all') setExportZipMonth(filterMonth);
+              if (filterYear !== 'all') setExportZipYear(filterYear);
+              if (filterBidang !== 'all') setExportZipBidang(filterBidang);
+              setIsExportZipModalOpen(true);
+            }}
+            className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-emerald-200 font-medium text-sm cursor-pointer"
+            title="Export dokumen bulanan ke ZIP (1 PDF per kegiatan)"
+          >
+            <Archive className="w-5 h-5" />
+            Export to ZIP
+          </button>
+          <button
+            onClick={() => {
+              if (filterMonth !== 'all') setBulkDeleteMonth(filterMonth);
+              if (filterYear !== 'all') setBulkDeleteYear(filterYear);
+              if (filterBidang !== 'all') setBulkDeleteBidang(filterBidang);
+              setIsConfirmedDeleteCheckbox(false);
+              setIsBulkDeleteModalOpen(true);
+            }}
+            className="flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 hover:border-rose-300 px-4 py-2.5 rounded-xl transition-all font-medium text-sm cursor-pointer"
+            title="Hapus data SPPD berdasarkan bulan/periode tertentu"
+          >
+            <Trash2 className="w-4 h-4 text-rose-600" />
+            Hapus Bulanan
+          </button>
+          <button
+            onClick={handleAdd}
+            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-blue-200 font-medium text-sm cursor-pointer"
+          >
+            <Plus className="w-5 h-5" />
+            Tambah SPPD
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-4">
@@ -2138,6 +2319,439 @@ export const SPPDList: React.FC = () => {
                     Kembali
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Export to ZIP Modal */}
+      <AnimatePresence>
+        {isExportZipModalOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!isExportingZip) setIsExportZipModalOpen(false);
+              }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-inner">
+                    <Archive className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Export Dokumen Bulanan (ZIP)</h3>
+                    <p className="text-xs text-gray-500">1 file PDF lengkap (SPD, Surat Tugas, Laporan Hasil, Dokumentasi, Rincian Biaya, & Kwitansi) per SPPD</p>
+                  </div>
+                </div>
+                <button
+                  disabled={isExportingZip}
+                  onClick={() => setIsExportZipModalOpen(false)}
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 disabled:opacity-30 cursor-pointer"
+                >
+                  <Plus className="w-5 h-5 rotate-45" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Select Month */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Pilih Bulan
+                    </label>
+                    <select
+                      disabled={isExportingZip}
+                      value={exportZipMonth}
+                      onChange={(e) => setExportZipMonth(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all disabled:opacity-50"
+                    >
+                      <option value="all">Semua Bulan</option>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <option key={i + 1} value={(i + 1).toString()}>
+                          {format(new Date(2024, i, 1), 'MMMM', { locale: id })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Select Year */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Pilih Tahun
+                    </label>
+                    <select
+                      disabled={isExportingZip}
+                      value={exportZipYear}
+                      onChange={(e) => setExportZipYear(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all disabled:opacity-50"
+                    >
+                      <option value="all">Semua Tahun</option>
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const yr = (new Date().getFullYear() - i).toString();
+                        return <option key={yr} value={yr}>{yr}</option>;
+                      })}
+                    </select>
+                  </div>
+
+                  {/* Select Bidang */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Filter Bidang (Opsional)
+                    </label>
+                    <select
+                      disabled={isExportingZip}
+                      value={exportZipBidang}
+                      onChange={(e) => setExportZipBidang(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all disabled:opacity-50"
+                    >
+                      <option value="all">Semua Bidang</option>
+                      <option value="Sekretariat">Sekretariat</option>
+                      <option value="Bidang Sosial">Bidang Sosial</option>
+                      <option value="Bidang PPPA">Bidang PPPA</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Status & Preview Box */}
+                <div className={cn(
+                  "p-4 rounded-2xl border transition-all",
+                  exportMatchingList.length > 0 
+                    ? "bg-emerald-50/70 border-emerald-200" 
+                    : "bg-amber-50/70 border-amber-200"
+                )}>
+                  <div className="flex items-start gap-3">
+                    <div className={cn(
+                      "p-2 rounded-xl mt-0.5",
+                      exportMatchingList.length > 0 
+                        ? "bg-emerald-100 text-emerald-700" 
+                        : "bg-amber-100 text-amber-700"
+                    )}>
+                      {exportMatchingList.length > 0 ? (
+                        <PackageCheck className="w-5 h-5" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-900">
+                        {exportMatchingList.length > 0 
+                          ? `${exportMatchingList.length} Dokumen SPPD Ditemukan` 
+                          : 'Tidak Ada Data SPPD'}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
+                        {exportMatchingList.length > 0 
+                          ? `Semua ${exportMatchingList.length} SPPD akan diexport sebagai file PDF mandiri (berisi SPD, Surat Tugas, Laporan Hasil, Foto Dokumentasi, Rincian Biaya, & Kwitansi) lalu dikompres ke ZIP.` 
+                          : 'Tidak ada data SPPD yang cocok dengan filter bulan, tahun, dan bidang yang dipilih.'}
+                      </p>
+
+                      {/* Mini Preview list */}
+                      {exportMatchingList.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-emerald-200/60 max-h-32 overflow-y-auto space-y-1.5 pr-1">
+                          {exportMatchingList.slice(0, 5).map((s, idx) => {
+                            const emp = employees[s.employeeId];
+                            return (
+                              <div key={s.id || idx} className="flex items-center justify-between text-[11px] text-gray-700 bg-white/70 px-2.5 py-1.5 rounded-lg">
+                                <span className="font-semibold truncate max-w-[200px]">{emp?.name || 'Pegawai'} ({s.destination})</span>
+                                <span className="text-gray-500 shrink-0 ml-2">
+                                  {format(new Date(s.departureDate), 'dd MMM yyyy', { locale: id })}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {exportMatchingList.length > 5 && (
+                            <p className="text-[11px] text-emerald-700 font-medium text-center pt-1">
+                              + {exportMatchingList.length - 5} berkas lainnya...
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress Bar (when active) */}
+                {isExportingZip && (
+                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2.5 animate-pulse">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="flex items-center gap-2 text-emerald-700">
+                        <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                        {exportProgress.status}
+                      </span>
+                      <span className="text-gray-600">
+                        {Math.round((exportProgress.current / (exportProgress.total || 1)) * 100)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                      <div 
+                        className="bg-emerald-600 h-2.5 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.round((exportProgress.current / (exportProgress.total || 1)) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-6 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-3">
+                <button
+                  disabled={isExportingZip}
+                  onClick={() => setIsExportZipModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl font-medium text-sm text-gray-600 hover:bg-gray-200/70 transition-all disabled:opacity-40 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  disabled={isExportingZip || exportMatchingList.length === 0}
+                  onClick={handleExportZip}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {isExportingZip ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Memproses ZIP...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Download ZIP ({exportMatchingList.length} Dokumen)
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Delete Modal */}
+      <AnimatePresence>
+        {isBulkDeleteModalOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!isDeletingBulk) setIsBulkDeleteModalOpen(false);
+              }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-rose-50/40">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-inner">
+                    <Trash2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Hapus Data SPPD Bulanan</h3>
+                    <p className="text-xs text-gray-500">Hapus data SPPD secara massal berdasarkan periode bulan/tahun yang dipilih</p>
+                  </div>
+                </div>
+                <button
+                  disabled={isDeletingBulk}
+                  onClick={() => setIsBulkDeleteModalOpen(false)}
+                  className="p-2 hover:bg-white rounded-xl transition-colors text-gray-400 disabled:opacity-30 cursor-pointer"
+                >
+                  <Plus className="w-5 h-5 rotate-45" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Select Month */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Pilih Bulan
+                    </label>
+                    <select
+                      disabled={isDeletingBulk}
+                      value={bulkDeleteMonth}
+                      onChange={(e) => {
+                        setBulkDeleteMonth(e.target.value);
+                        setIsConfirmedDeleteCheckbox(false);
+                      }}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all disabled:opacity-50"
+                    >
+                      <option value="all">Semua Bulan</option>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <option key={i + 1} value={(i + 1).toString()}>
+                          {format(new Date(2024, i, 1), 'MMMM', { locale: id })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Select Year */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Pilih Tahun
+                    </label>
+                    <select
+                      disabled={isDeletingBulk}
+                      value={bulkDeleteYear}
+                      onChange={(e) => {
+                        setBulkDeleteYear(e.target.value);
+                        setIsConfirmedDeleteCheckbox(false);
+                      }}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all disabled:opacity-50"
+                    >
+                      <option value="all">Semua Tahun</option>
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const yr = (new Date().getFullYear() - i).toString();
+                        return <option key={yr} value={yr}>{yr}</option>;
+                      })}
+                    </select>
+                  </div>
+
+                  {/* Select Bidang */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Filter Bidang (Opsional)
+                    </label>
+                    <select
+                      disabled={isDeletingBulk}
+                      value={bulkDeleteBidang}
+                      onChange={(e) => {
+                        setBulkDeleteBidang(e.target.value);
+                        setIsConfirmedDeleteCheckbox(false);
+                      }}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all disabled:opacity-50"
+                    >
+                      <option value="all">Semua Bidang</option>
+                      <option value="Sekretariat">Sekretariat</option>
+                      <option value="Bidang Sosial">Bidang Sosial</option>
+                      <option value="Bidang PPPA">Bidang PPPA</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Target Data Preview Box */}
+                <div className={cn(
+                  "p-4 rounded-2xl border transition-all",
+                  bulkDeleteMatchingList.length > 0 
+                    ? "bg-rose-50/70 border-rose-200" 
+                    : "bg-gray-50 border-gray-200"
+                )}>
+                  <div className="flex items-start gap-3">
+                    <div className={cn(
+                      "p-2 rounded-xl mt-0.5",
+                      bulkDeleteMatchingList.length > 0 
+                        ? "bg-rose-100 text-rose-700" 
+                        : "bg-gray-200 text-gray-600"
+                    )}>
+                      {bulkDeleteMatchingList.length > 0 ? (
+                        <AlertTriangle className="w-5 h-5" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-900">
+                        {bulkDeleteMatchingList.length > 0 
+                          ? `${bulkDeleteMatchingList.length} Data SPPD Ditemukan Untuk Dihapus` 
+                          : 'Tidak Ada Data SPPD Pada Periode Ini'}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
+                        {bulkDeleteMatchingList.length > 0 
+                          ? `Sebanyak ${bulkDeleteMatchingList.length} data kegiatan SPPD akan dihapus secara permanen dari database.` 
+                          : 'Tidak ada data SPPD yang cocok dengan filter bulan, tahun, dan bidang yang dipilih.'}
+                      </p>
+
+                      {/* Mini Preview list */}
+                      {bulkDeleteMatchingList.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-rose-200 max-h-32 overflow-y-auto space-y-1.5 pr-1">
+                          {bulkDeleteMatchingList.slice(0, 5).map((s, idx) => {
+                            const emp = employees[s.employeeId];
+                            return (
+                              <div key={s.id || idx} className="flex items-center justify-between text-[11px] text-gray-700 bg-white px-2.5 py-1.5 rounded-lg border border-rose-100">
+                                <span className="font-semibold truncate max-w-[200px]">{emp?.name || 'Pegawai'} ({s.destination})</span>
+                                <span className="text-gray-500 shrink-0 ml-2">
+                                  {format(new Date(s.departureDate), 'dd MMM yyyy', { locale: id })}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {bulkDeleteMatchingList.length > 5 && (
+                            <p className="text-[11px] text-rose-700 font-medium text-center pt-1">
+                              + {bulkDeleteMatchingList.length - 5} data lainnya...
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Checkbox Konfirmasi Penghapusan */}
+                {bulkDeleteMatchingList.length > 0 && (
+                  <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-3">
+                    <label 
+                      htmlFor="confirm-bulk-delete-checkbox" 
+                      className="flex items-start gap-3 cursor-pointer select-none"
+                    >
+                      <input
+                        type="checkbox"
+                        id="confirm-bulk-delete-checkbox"
+                        disabled={isDeletingBulk}
+                        checked={isConfirmedDeleteCheckbox}
+                        onChange={(e) => setIsConfirmedDeleteCheckbox(e.target.checked)}
+                        className="mt-1 w-4 h-4 text-rose-600 rounded border-gray-300 focus:ring-rose-500 cursor-pointer"
+                      />
+                      <div className="text-xs text-amber-950 font-medium leading-relaxed">
+                        <span className="font-bold text-amber-900 block mb-0.5">Konfirmasi Penghapusan Permanen</span>
+                        Saya mengerti dan menyetujui untuk menghapus seluruh ({bulkDeleteMatchingList.length}) data SPPD pada periode ini secara permanen. Data yang telah dihapus tidak dapat dipulihkan.
+                      </div>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-6 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-3">
+                <button
+                  disabled={isDeletingBulk}
+                  onClick={() => setIsBulkDeleteModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl font-medium text-sm text-gray-600 hover:bg-gray-200/70 transition-all disabled:opacity-40 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  disabled={isDeletingBulk || !isConfirmedDeleteCheckbox || bulkDeleteMatchingList.length === 0}
+                  onClick={handleExecuteBulkDelete}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm text-white bg-rose-600 hover:bg-rose-700 transition-all shadow-lg shadow-rose-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {isDeletingBulk ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Menghapus Data...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Hapus {bulkDeleteMatchingList.length} Data SPPD
+                    </>
+                  )}
+                </button>
               </div>
             </motion.div>
           </div>
