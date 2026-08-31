@@ -214,12 +214,32 @@ const Settings: React.FC = () => {
   const [newActivity, setNewActivity] = useState({ code: '', name: '' });
 
   useEffect(() => {
-    const unsubSettings = onSnapshot(doc(db, 'settings', 'general'), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data() as AppSettings;
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'general'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as AppSettings;
+        // Check and auto-clean any typo like BIDANGH -> BIDANG in bendaharaPembantu
+        let hasTypo = false;
+        const cleanedBendahara = { ...(data.bendaharaPembantu || {}) };
+        Object.keys(cleanedBendahara).forEach((bKey) => {
+          if (cleanedBendahara[bKey]?.title && /\bBIDANGH\b/i.test(cleanedBendahara[bKey].title)) {
+            cleanedBendahara[bKey] = {
+              ...cleanedBendahara[bKey],
+              title: cleanedBendahara[bKey].title.replace(/\bBIDANGH\b/gi, 'BIDANG').trim()
+            };
+            hasTypo = true;
+          }
+        });
+
+        const cleanedData = hasTypo ? { ...data, bendaharaPembantu: cleanedBendahara } : data;
+
+        // If typo was detected in database, automatically persist the fix to firestore
+        if (hasTypo) {
+          setDoc(doc(db, 'settings', 'general'), cleanedData).catch(console.error);
+        }
+
         // Only update from cloud if user is not actively typing/debouncing
         if (!isEditingRef.current && !pendingSettingsRef.current) {
-          setSettings(data);
+          setSettings(cleanedData);
         }
       }
       setLoading(false);
@@ -876,7 +896,8 @@ const Settings: React.FC = () => {
                               onChange={(e) => {
                                 const newBendahara = { ...(settings.bendaharaPembantu || {}) };
                                 if (!newBendahara[bidang]) newBendahara[bidang] = { name: '', nip: '', title: '' };
-                                newBendahara[bidang] = { ...newBendahara[bidang], title: e.target.value };
+                                const cleanTitle = e.target.value.replace(/\bBIDANGH\b/gi, 'BIDANG');
+                                newBendahara[bidang] = { ...newBendahara[bidang], title: cleanTitle };
                                 const updated = { ...settings, bendaharaPembantu: newBendahara };
                                 setSettings(updated);
                                 saveSettings(updated, false);

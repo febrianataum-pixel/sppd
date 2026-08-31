@@ -288,8 +288,13 @@ export const SPPDList: React.FC = () => {
 
     const empRoles = getEmployeeRoles(bendaharaEmployee);
     const matchedRole = empRoles.find(r => r.toLowerCase().includes('bendahara')) || bendaharaEmployee?.jabatanSppd;
-    const rawTitle = bendaharaSettings?.title || matchedRole || (sppd.bidang ? `PEMBANTU ${sppd.bidang.toUpperCase()}` : 'PENGELUARAN');
-    const title = rawTitle.replace(/^Bendahara Pengeluaran\s+/i, '');
+    let rawTitle = bendaharaSettings?.title || matchedRole || (sppd.bidang ? `PEMBANTU ${sppd.bidang.toUpperCase()}` : 'PENGELUARAN');
+    
+    // Auto-fix typo BIDANGH -> BIDANG
+    rawTitle = rawTitle.replace(/\bBIDANGH\b/gi, 'BIDANG');
+    
+    let title = rawTitle.replace(/^Bendahara Pengeluaran\s+/i, '').trim();
+    title = title.replace(/\bBIDANGH\b/gi, 'BIDANG').trim();
 
     return { name, nip, title };
   };
@@ -1329,8 +1334,9 @@ export const SPPDList: React.FC = () => {
     doc.text(`: ${sppd.number || '-'}`, 50, currentY);
 
     currentY += 7;
-    const bendaharaText = sppd.bidang 
-      ? `BENDAHARA PENGELUARAN PEMBANTU ${sppd.bidang.toUpperCase()}`
+    const cleanBidangKwitansi = (sppd.bidang || '').replace(/\bBIDANGH\b/gi, 'Bidang').trim();
+    const bendaharaText = cleanBidangKwitansi 
+      ? `BENDAHARA PENGELUARAN PEMBANTU ${cleanBidangKwitansi.toUpperCase()}`
       : 'BENDAHARA PENGELUARAN';
     doc.text('Telah terima dari', 20, currentY);
     doc.text(`: ${bendaharaText} DINSOS PPPA KAB. BLORA`, 50, currentY);
@@ -1501,8 +1507,9 @@ export const SPPDList: React.FC = () => {
     doc.text(`: ${sppd.number || '-'}`, 50, currentY);
 
     currentY += 7;
-    const bendaharaText = sppd.bidang 
-      ? `BENDAHARA PENGELUARAN PEMBANTU ${sppd.bidang.toUpperCase()}`
+    const cleanBidangBbm = (sppd.bidang || '').replace(/\bBIDANGH\b/gi, 'Bidang').trim();
+    const bendaharaText = cleanBidangBbm 
+      ? `BENDAHARA PENGELUARAN PEMBANTU ${cleanBidangBbm.toUpperCase()}`
       : 'BENDAHARA PENGELUARAN';
     const telatTerimaText = `: ${bendaharaText} DINSOS PPPA KAB. BLORA`;
     const wrappedTelahTerima = doc.splitTextToSize(telatTerimaText, 145);
