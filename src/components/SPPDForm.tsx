@@ -27,7 +27,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthProvider';
-import { SPPD, Employee, SubActivity, OperationType } from '../types';
+import { SPPD, Employee, SubActivity, OperationType, getEmployeeRoles, employeeHasRole } from '../types';
 import { handleFirestoreError } from '../lib/error-handler';
 import { cn } from '../lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
@@ -164,6 +164,38 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
       setFormData(prev => ({ ...prev, purpose: prev.invitationSubject }));
     }
   }, [formData.invitationSubject]);
+
+  // Auto-suggest PPK/PPKom and PPTK when Bidang changes or employees load (especially for new SPPD)
+  useEffect(() => {
+    if (!formData.bidang || employees.length === 0) return;
+
+    const bidang = formData.bidang;
+
+    // 1. Find matching PPTK for this bidang
+    const matchingPptk = employees.find(e => employeeHasRole(e, 'PPTK', bidang))
+      || employees.find(e => employeeHasRole(e, 'PPTK'));
+
+    // 2. Find matching PPK or PPKom for this bidang
+    const matchingPpk = employees.find(e => employeeHasRole(e, 'PPKOM', bidang))
+      || employees.find(e => employeeHasRole(e, 'PPK', bidang))
+      || employees.find(e => employeeHasRole(e, 'PPKOM') || employeeHasRole(e, 'PPK'));
+
+    if (!sppdId) {
+      setFormData(prev => {
+        const updates: Partial<SPPD> = {};
+        const currentPptkEmp = employees.find(e => e.id === prev.pptkId);
+        if (matchingPptk && (!prev.pptkId || !employeeHasRole(currentPptkEmp, 'PPTK', bidang))) {
+          updates.pptkId = matchingPptk.id;
+        }
+
+        const currentPpkEmp = employees.find(e => e.id === prev.ppkId);
+        if (matchingPpk && (!prev.ppkId || (!employeeHasRole(currentPpkEmp, 'PPKOM', bidang) && !employeeHasRole(currentPpkEmp, 'PPK', bidang)))) {
+          updates.ppkId = matchingPpk.id;
+        }
+        return { ...prev, ...updates };
+      });
+    }
+  }, [formData.bidang, employees, sppdId]);
 
   const handleAddFollower = () => {
     if ((formData.followers?.length || 0) >= 3) {
@@ -335,22 +367,36 @@ export const SPPDForm: React.FC<SPPDFormProps> = ({ isOpen, onClose, sppdId }) =
   }));
 
   const ppkOptions = employees
-    .filter(e => e.jabatanSppd?.toUpperCase() === 'PPK')
-    .map(emp => ({
-      id: emp.id!,
-      label: emp.name,
-      sublabel: emp.nip,
-      data: emp
-    }));
+    .filter(e => employeeHasRole(e, 'PPK') || employeeHasRole(e, 'PPKOM'))
+    .map(emp => {
+      const roles = getEmployeeRoles(emp);
+      const isMatch = formData.bidang && (employeeHasRole(emp, 'PPK', formData.bidang) || employeeHasRole(emp, 'PPKOM', formData.bidang));
+      const rolesLabel = roles.filter(r => r !== 'Pelaksana').join(', ') || emp.jabatan;
+      return {
+        id: emp.id!,
+        label: emp.name,
+        sublabel: `${emp.nip} - ${rolesLabel}${isMatch ? ' [Sesuai Bidang]' : ''}`,
+        data: emp,
+        priority: isMatch ? 1 : 0
+      };
+    })
+    .sort((a, b) => b.priority - a.priority);
 
   const pptkOptions = employees
-    .filter(e => e.jabatanSppd?.includes('PPTK'))
-    .map(emp => ({
-      id: emp.id!,
-      label: emp.name,
-      sublabel: emp.nip,
-      data: emp
-    }));
+    .filter(e => employeeHasRole(e, 'PPTK'))
+    .map(emp => {
+      const roles = getEmployeeRoles(emp);
+      const isMatch = formData.bidang && employeeHasRole(emp, 'PPTK', formData.bidang);
+      const rolesLabel = roles.filter(r => r !== 'Pelaksana').join(', ') || emp.jabatan;
+      return {
+        id: emp.id!,
+        label: emp.name,
+        sublabel: `${emp.nip} - ${rolesLabel}${isMatch ? ' [Sesuai Bidang]' : ''}`,
+        data: emp,
+        priority: isMatch ? 1 : 0
+      };
+    })
+    .sort((a, b) => b.priority - a.priority);
 
   return (
     <AnimatePresence>

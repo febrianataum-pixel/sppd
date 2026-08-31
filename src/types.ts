@@ -46,7 +46,49 @@ export interface Employee {
   golongan?: string;
   tingkatSppd?: string;
   jabatanSppd?: string;
+  jabatanSppdList?: string[];
 }
+
+export const getEmployeeRoles = (emp?: Partial<Employee> | null): string[] => {
+  if (!emp) return [];
+  if (Array.isArray(emp.jabatanSppdList) && emp.jabatanSppdList.length > 0) {
+    return emp.jabatanSppdList.filter(Boolean);
+  }
+  if (emp.jabatanSppd) {
+    return emp.jabatanSppd
+      .split(/[,;]/)
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+export const employeeHasRole = (emp?: Partial<Employee> | null, roleKeyword?: string, bidangKeyword?: string): boolean => {
+  const roles = getEmployeeRoles(emp);
+  if (roles.length === 0) return false;
+  if (!roleKeyword) return true;
+
+  const roleUpper = roleKeyword.toUpperCase();
+  return roles.some(r => {
+    const rUpper = r.toUpperCase();
+    let matches = false;
+
+    if (roleUpper === 'PPK') {
+      // Must match PPK but not PPTK or PPKOM unless requested
+      matches = (rUpper.includes('PPK') && !rUpper.includes('PPTK') && !rUpper.includes('PPKOM')) || rUpper === 'PPK';
+    } else if (roleUpper === 'PPKOM') {
+      matches = rUpper.includes('PPKOM') || rUpper.includes('PPK-KOM');
+    } else {
+      matches = rUpper.includes(roleUpper);
+    }
+
+    if (!matches) return false;
+    if (bidangKeyword) {
+      return r.toLowerCase().includes(bidangKeyword.toLowerCase());
+    }
+    return true;
+  });
+};
 
 export interface SubActivity {
   id?: string;

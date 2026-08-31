@@ -41,7 +41,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthProvider';
-import { SPPD, Employee, SubActivity, OperationType, AppSettings } from '../types';
+import { SPPD, Employee, SubActivity, OperationType, AppSettings, getEmployeeRoles, employeeHasRole } from '../types';
 import { handleFirestoreError } from '../lib/error-handler';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -228,6 +228,70 @@ export const SPPDList: React.FC = () => {
       console.error(err);
       handleFirestoreError(err as any, OperationType.UPDATE, 'sppd');
     }
+  };
+
+  const getSPPDPPK = (sppd: SPPD, empMap: Record<string, Employee>): Employee | undefined => {
+    // 1. If explicit valid ppkId exists and employee still exists, return it
+    if (sppd.ppkId && empMap[sppd.ppkId]) {
+      return empMap[sppd.ppkId];
+    }
+    const allEmps = Object.values(empMap) as Employee[];
+    const bidang = sppd.bidang || '';
+    
+    // 2. Try matching PPKom for this specific bidang (e.g., 'PPKom Bidang Sosial', 'PPKom UPTD PPA')
+    const ppkomBidang = allEmps.find(e => employeeHasRole(e, 'PPKOM', bidang));
+    if (ppkomBidang) return ppkomBidang;
+
+    // 3. Try matching PPK for this specific bidang (e.g., 'PPK Bidang Sosial', 'PPK Sekretariat')
+    const ppkBidang = allEmps.find(e => employeeHasRole(e, 'PPK', bidang));
+    if (ppkBidang) return ppkBidang;
+
+    // 4. Try matching general PPKom / PPK Umum
+    const ppkomUmum = allEmps.find(e => employeeHasRole(e, 'PPKOM (Umum)') || employeeHasRole(e, 'PPK (Umum)'));
+    if (ppkomUmum) return ppkomUmum;
+
+    // 5. Fallback to any PPKom or PPK
+    return allEmps.find(e => employeeHasRole(e, 'PPKOM') || employeeHasRole(e, 'PPK'));
+  };
+
+  const getSPPDPPTK = (sppd: SPPD, empMap: Record<string, Employee>): Employee | undefined => {
+    // 1. If explicit valid pptkId exists and employee still exists, return it
+    if (sppd.pptkId && empMap[sppd.pptkId]) {
+      return empMap[sppd.pptkId];
+    }
+    const allEmps = Object.values(empMap) as Employee[];
+    const bidang = sppd.bidang || '';
+
+    // 2. Try matching PPTK for this specific bidang (e.g., 'PPTK Bidang Sosial', 'PPTK Sekretariat')
+    const pptkBidang = allEmps.find(e => employeeHasRole(e, 'PPTK', bidang));
+    if (pptkBidang) return pptkBidang;
+
+    // 3. Try matching PPTK Umum
+    const pptkUmum = allEmps.find(e => employeeHasRole(e, 'PPTK (Umum)'));
+    if (pptkUmum) return pptkUmum;
+
+    // 4. Fallback to any PPTK
+    return allEmps.find(e => employeeHasRole(e, 'PPTK'));
+  };
+
+  const getSPPDBendahara = (sppd: SPPD, empMap: Record<string, Employee>, appSettings: AppSettings | null): { name: string; nip: string; title: string } => {
+    const allEmps = Object.values(empMap) as Employee[];
+    const bidang = sppd.bidang || '';
+
+    // 1. Try matching Bendahara Pembantu for this specific bidang in employees
+    const bendaharaEmployee = allEmps.find(e => employeeHasRole(e, 'bendahara', bidang))
+      || allEmps.find(e => employeeHasRole(e, 'bendahara'));
+
+    const bendaharaSettings = appSettings?.bendaharaPembantu?.[sppd.bidang];
+    const name = bendaharaEmployee?.name || bendaharaSettings?.name || '';
+    const nip = bendaharaEmployee?.nip || bendaharaSettings?.nip || '';
+
+    const empRoles = getEmployeeRoles(bendaharaEmployee);
+    const matchedRole = empRoles.find(r => r.toLowerCase().includes('bendahara')) || bendaharaEmployee?.jabatanSppd;
+    const rawTitle = bendaharaSettings?.title || matchedRole || (sppd.bidang ? `PEMBANTU ${sppd.bidang.toUpperCase()}` : 'PENGELUARAN');
+    const title = rawTitle.replace(/^Bendahara Pengeluaran\s+/i, '');
+
+    return { name, nip, title };
   };
 
   const shouldShowNotaDinas = (employee?: Employee) => {
@@ -438,7 +502,7 @@ export const SPPDList: React.FC = () => {
 
   const renderSPDContent = (doc: jsPDF, sppd: SPPD) => {
     const employee = employees[sppd.employeeId];
-    const ppk = employees[sppd.ppkId];
+    const ppk = getSPPDPPK(sppd, employees);
     const activity = activities[sppd.subActivityId];
 
     // Set default font color to black
@@ -602,7 +666,7 @@ export const SPPDList: React.FC = () => {
 
   const renderSuratTugasContent = (doc: jsPDF, sppd: SPPD) => {
     const employee = employees[sppd.employeeId];
-    const ppk = employees[sppd.ppkId];
+    const ppk = getSPPDPPK(sppd, employees);
     const kepalaDinas = (Object.values(employees) as Employee[]).find(e => e.jabatanSppd?.toUpperCase() === 'KEPALA DINAS');
 
     doc.setTextColor(0, 0, 0);
@@ -1090,21 +1154,10 @@ export const SPPDList: React.FC = () => {
 
   const renderRincianBiayaContent = (doc: jsPDF, sppd: SPPD) => {
     const employee = employees[sppd.employeeId];
-    const ppk = employees[sppd.ppkId];
+    const ppk = getSPPDPPK(sppd, employees);
     
-    // Find Bendahara from employees list based on jabatanSppd
-    const employeeList = Object.values(employees) as Employee[];
-    const bendaharaEmployee = employeeList.find(emp => 
-      emp.jabatanSppd === `Bendahara Pengeluaran Pembantu ${sppd.bidang}`
-    ) || employeeList.find(emp => emp.jabatanSppd === 'Bendahara Pengeluaran');
-    
-    const bendaharaSettings = settings?.bendaharaPembantu?.[sppd.bidang];
-    const bendaharaName = bendaharaEmployee?.name || bendaharaSettings?.name || '';
-    const bendaharaNip = bendaharaEmployee?.nip || bendaharaSettings?.nip || '';
-    
-    // Clean up title to avoid double "Bendahara Pengeluaran"
-    const rawTitle = bendaharaSettings?.title || bendaharaEmployee?.jabatanSppd || `PEMBANTU ${sppd.bidang.toUpperCase()}`;
-    const bendaharaTitle = rawTitle.replace(/^Bendahara Pengeluaran\s+/i, '');
+    // Find Bendahara from employees list or settings based on bidang
+    const { name: bendaharaName, nip: bendaharaNip, title: bendaharaTitle } = getSPPDBendahara(sppd, employees, settings);
 
     doc.setTextColor(0, 0, 0);
     const bodyFontSize = 10;
@@ -1246,8 +1299,8 @@ export const SPPDList: React.FC = () => {
 
   const renderKwitansiContent = (doc: jsPDF, sppd: SPPD) => {
     const employee = employees[sppd.employeeId];
-    const ppk = employees[sppd.ppkId];
-    const pptk = sppd.pptkId ? employees[sppd.pptkId] : (Object.values(employees) as Employee[]).find(e => e.jabatanSppd?.includes('PPTK'));
+    const ppk = getSPPDPPK(sppd, employees);
+    const pptk = getSPPDPPTK(sppd, employees);
     const subActivity = activities[sppd.subActivityId];
 
     const fuelPriceObj = settings?.fuelPrices.find(f => f.type === sppd.fuelType);
@@ -1354,8 +1407,8 @@ export const SPPDList: React.FC = () => {
 
   const renderKwitansiBBMContent = (doc: jsPDF, sppd: SPPD) => {
     const employee = employees[sppd.employeeId];
-    const ppk = employees[sppd.ppkId];
-    const pptk = sppd.pptkId ? employees[sppd.pptkId] : (Object.values(employees) as Employee[]).find(e => e.jabatanSppd?.includes('PPTK'));
+    const ppk = getSPPDPPK(sppd, employees);
+    const pptk = getSPPDPPTK(sppd, employees);
     const subActivity = activities[sppd.subActivityId];
     
     const fuelPriceObj = settings?.fuelPrices.find(f => f.type === sppd.fuelType);

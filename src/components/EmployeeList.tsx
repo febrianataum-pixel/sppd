@@ -17,7 +17,11 @@ import {
   Award,
   CreditCard,
   UserCheck,
-  Copy
+  Copy,
+  Sparkles,
+  ShieldCheck,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { 
   collection, 
@@ -31,28 +35,138 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Employee, OperationType } from '../types';
+import { Employee, OperationType, getEmployeeRoles, employeeHasRole } from '../types';
 import { handleFirestoreError } from '../lib/error-handler';
 import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
+
+const ROLE_GROUPS = [
+  {
+    category: 'Pimpinan & Umum',
+    description: 'Jabatan struktural pimpinan atau pelaksana tugas umum',
+    roles: ['Pelaksana', 'Kepala Dinas', 'Sekretaris']
+  },
+  {
+    category: 'Pejabat Penatausahaan Keuangan (PPK)',
+    description: 'Pejabat Penatausahaan Keuangan SKPD / Bidang',
+    roles: ['PPK (Umum)', 'PPK Sekretariat', 'PPK Bidang Sosial', 'PPK Bidang PPPA', 'PPK UPTD PPA']
+  },
+  {
+    category: 'Pejabat Pembuat Komitmen (PPKom)',
+    description: 'Pejabat Pembuat Komitmen pengadaan / kegiatan',
+    roles: ['PPKom (Umum)', 'PPKom Sekretariat', 'PPKom Bidang Sosial', 'PPKom Bidang PPPA', 'PPKom UPTD PPA']
+  },
+  {
+    category: 'Pejabat Pelaksana Teknis Kegiatan (PPTK)',
+    description: 'Pejabat teknis pengendali pelaksanaan kegiatan',
+    roles: ['PPTK (Umum)', 'PPTK Sekretariat', 'PPTK Bidang Sosial', 'PPTK Bidang PPPA', 'PPTK UPTD PPA']
+  },
+  {
+    category: 'Bendahara Pengeluaran',
+    description: 'Bendahara pengeluaran dinas / pembantu bidang',
+    roles: [
+      'Bendahara Pengeluaran',
+      'Bendahara Pengeluaran Pembantu Sekretariat',
+      'Bendahara Pengeluaran Pembantu Bidang Sosial',
+      'Bendahara Pengeluaran Pembantu Bidang PPPA',
+      'Bendahara Pengeluaran Pembantu UPTD PPA'
+    ]
+  }
+];
+
+const ROLE_PRESETS = [
+  {
+    label: 'Kepala Bidang Sosial (PPK & PPKom)',
+    roles: ['PPK Bidang Sosial', 'PPKom Bidang Sosial'],
+    color: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+  },
+  {
+    label: 'Kepala Bidang PPPA (PPK & PPKom)',
+    roles: ['PPK Bidang PPPA', 'PPKom Bidang PPPA'],
+    color: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+  },
+  {
+    label: 'Sekretaris (PPK & PPKom)',
+    roles: ['PPK Sekretariat', 'PPKom Sekretariat'],
+    color: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+  },
+  {
+    label: 'Kepala UPTD PPA (PPK & PPKom)',
+    roles: ['PPK UPTD PPA', 'PPKom UPTD PPA'],
+    color: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+  }
+];
 
 export const EmployeeList: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setModalOpen] = useState(false);
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(['Pelaksana']);
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [copiedNip, setCopiedNip] = useState<string | null>(null);
   const [isLoading, setLoading] = useState(false);
   const [isImporting, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('Semua');
   const [showImportInfo, setShowImportInfo] = useState(false);
+
+  const getJabatanSppdBadges = (emp?: Partial<Employee> | null) => {
+    const roles = getEmployeeRoles(emp);
+    if (roles.length === 0 || (roles.length === 1 && roles[0] === 'Pelaksana')) {
+      return <span className="text-[10px] text-gray-500 font-medium bg-gray-100 px-2 py-0.5 rounded-md inline-block">Pelaksana</span>;
+    }
+    return (
+      <div className="flex flex-wrap items-center gap-1">
+        {roles.map((role, idx) => {
+          if (role === 'Pelaksana' && roles.length > 1) return null;
+          let style = "text-gray-700 bg-gray-100 border-gray-200";
+          const rUp = role.toUpperCase();
+          if (rUp.includes('PPTK')) {
+            style = "text-amber-800 font-bold bg-amber-50 border-amber-200/80";
+          } else if (rUp.includes('PPKOM')) {
+            style = "text-blue-800 font-bold bg-blue-50 border-blue-200/80";
+          } else if (rUp.includes('PPK')) {
+            style = "text-indigo-800 font-bold bg-indigo-50 border-indigo-200/80";
+          } else if (role.toLowerCase().includes('bendahara')) {
+            style = "text-emerald-800 font-bold bg-emerald-50 border-emerald-200/80";
+          } else if (role.toLowerCase().includes('kepala dinas') || role.toLowerCase().includes('sekretaris')) {
+            style = "text-purple-800 font-bold bg-purple-50 border-purple-200/80";
+          }
+          return (
+            <span key={idx} className={`text-[10px] px-2 py-0.5 rounded-md border ${style}`}>
+              {role}
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
 
   const handleCopyNip = (nip?: string) => {
     if (!nip || nip === '-') return;
     navigator.clipboard.writeText(nip);
     setCopiedNip(nip);
     setTimeout(() => setCopiedNip(null), 2000);
+  };
+
+  const toggleRole = (role: string) => {
+    setSelectedRoles(prev => {
+      if (role === 'Pelaksana') {
+        return ['Pelaksana'];
+      }
+      const withoutPelaksana = prev.filter(r => r !== 'Pelaksana');
+      if (withoutPelaksana.includes(role)) {
+        const filtered = withoutPelaksana.filter(r => r !== role);
+        return filtered.length > 0 ? filtered : ['Pelaksana'];
+      } else {
+        return [...withoutPelaksana, role];
+      }
+    });
+  };
+
+  const applyPreset = (roles: string[]) => {
+    setSelectedRoles(roles);
   };
 
   useEffect(() => {
@@ -64,12 +178,27 @@ export const EmployeeList: React.FC = () => {
     return unsubscribe;
   }, []);
 
+  const openAddModal = () => {
+    setCurrentEmployee(null);
+    setSelectedRoles(['Pelaksana']);
+    setModalOpen(true);
+  };
+
+  const openEditModal = (emp: Employee) => {
+    setCurrentEmployee(emp);
+    const roles = getEmployeeRoles(emp);
+    setSelectedRoles(roles.length > 0 ? roles : ['Pelaksana']);
+    setModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    const validRoles = selectedRoles.length > 0 ? selectedRoles : ['Pelaksana'];
+
     const data: Partial<Employee> = {
       name: formData.get('name') as string,
       nip: formData.get('nip') as string,
@@ -77,7 +206,8 @@ export const EmployeeList: React.FC = () => {
       pangkat: formData.get('pangkat') as string,
       golongan: formData.get('golongan') as string,
       tingkatSppd: formData.get('tingkatSppd') as string,
-      jabatanSppd: formData.get('jabatanSppd') as string,
+      jabatanSppdList: validRoles,
+      jabatanSppd: validRoles.join(', '),
     };
 
     try {
@@ -119,6 +249,11 @@ export const EmployeeList: React.FC = () => {
           const employeesRef = collection(db, 'employees');
           
           results.data.forEach((row: any) => {
+            const rawJabatanSppd = row['Jabatan dalam SPPD'] || row.jabatanSppd || '';
+            const parsedRoles = rawJabatanSppd
+              ? rawJabatanSppd.split(/[,;]/).map((s: string) => s.trim()).filter(Boolean)
+              : ['Pelaksana'];
+
             const newDocRef = doc(employeesRef);
             batch.set(newDocRef, {
               name: row.Nama || row.name || '',
@@ -127,7 +262,8 @@ export const EmployeeList: React.FC = () => {
               pangkat: row.Pangkat || row.pangkat || '',
               golongan: row.Golongan || row.golongan || '',
               tingkatSppd: row['Tingkat SPPD'] || row.tingkatSppd || '',
-              jabatanSppd: row['Jabatan dalam SPPD'] || row.jabatanSppd || '',
+              jabatanSppdList: parsedRoles,
+              jabatanSppd: parsedRoles.join(', '),
             });
           });
 
@@ -148,10 +284,25 @@ export const EmployeeList: React.FC = () => {
     });
   };
 
-  const filteredEmployees = employees.filter(emp => 
-    emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.nip.includes(searchTerm)
-  );
+  const filteredEmployees = employees.filter(emp => {
+    const roles = getEmployeeRoles(emp);
+    const rolesString = roles.join(' ');
+    const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.nip.includes(searchTerm) ||
+      (emp.jabatan || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (emp.jabatanSppd || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      rolesString.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (!matchesSearch) return false;
+
+    if (selectedRoleFilter === 'Semua') return true;
+    if (selectedRoleFilter === 'PPTK') return employeeHasRole(emp, 'PPTK');
+    if (selectedRoleFilter === 'PPK') return employeeHasRole(emp, 'PPK');
+    if (selectedRoleFilter === 'PPKom') return employeeHasRole(emp, 'PPKOM');
+    if (selectedRoleFilter === 'Bendahara') return employeeHasRole(emp, 'bendahara');
+    if (selectedRoleFilter === 'Pelaksana') return roles.length === 0 || (roles.length === 1 && roles[0] === 'Pelaksana');
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -159,7 +310,7 @@ export const EmployeeList: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Data Karyawan</h1>
-          <p className="text-gray-500 text-sm">Kelola data pegawai Dinsos PPPA Blora.</p>
+          <p className="text-gray-500 text-sm">Kelola data pegawai Dinsos PPPA Blora dengan dukungan multi-peran SPPD (PPK, PPKom, PPTK, dll).</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -181,11 +332,8 @@ export const EmployeeList: React.FC = () => {
             Import CSV
           </label>
           <button
-            onClick={() => {
-              setCurrentEmployee(null);
-              setModalOpen(true);
-            }}
-            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-blue-200 font-medium"
+            onClick={openAddModal}
+            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-blue-200 font-medium cursor-pointer"
           >
             <Plus className="w-5 h-5" />
             Tambah Karyawan
@@ -204,7 +352,7 @@ export const EmployeeList: React.FC = () => {
             <div className="bg-blue-50 border border-blue-100 p-6 rounded-2xl space-y-4">
               <div className="flex items-center gap-2 text-blue-800 font-bold">
                 <Info className="w-5 h-5" />
-                Petunjuk Format Import CSV
+                Petunjuk Format Import CSV (Dukungan Multi-Peran)
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                 <div className="space-y-2">
@@ -218,13 +366,21 @@ export const EmployeeList: React.FC = () => {
                     <li>• Tingkat SPPD</li>
                     <li>• Jabatan dalam SPPD</li>
                   </ul>
+                  <div className="mt-3 p-3 bg-white/80 rounded-xl border border-blue-200 text-blue-900 text-xs space-y-1">
+                    <p className="font-bold">💡 Contoh Multi-Peran (PPK & PPKom Sekaligus):</p>
+                    <code className="block bg-blue-100/70 p-1.5 rounded text-[11px] font-mono">
+                      PPK Bidang Sosial, PPKom Bidang Sosial
+                    </code>
+                  </div>
                 </div>
                 <div className="space-y-2 text-blue-700">
-                  <p className="font-bold text-blue-900 uppercase tracking-wider text-[10px]">Peringatan Penting:</p>
-                  <ul className="space-y-1 font-medium italic">
-                    <li>- Pastikan file disimpan dengan format <span className="font-bold underline">CSV (Comma delimited)</span>.</li>
-                    <li>- <span className="font-bold">Tingkat SPPD</span> wajib diisi satu huruf saja (A, B, C, D, E, F, G, atau H).</li>
-                    <li>- Hindari penggunaan simbol "kutip" di dalam isi data Nama atau Jabatan.</li>
+                  <p className="font-bold text-blue-900 uppercase tracking-wider text-[10px]">Pilihan Jabatan dalam SPPD:</p>
+                  <ul className="space-y-1 font-medium text-xs">
+                    <li>- <span className="font-semibold">PPK:</span> PPK Sekretariat, PPK Bidang Sosial, PPK Bidang PPPA, PPK UPTD PPA, PPK (Umum)</li>
+                    <li>- <span className="font-semibold">PPKom:</span> PPKom Sekretariat, PPKom Bidang Sosial, PPKom Bidang PPPA, PPKom UPTD PPA, PPKom (Umum)</li>
+                    <li>- <span className="font-semibold">PPTK:</span> PPTK Sekretariat, PPTK Bidang Sosial, PPTK Bidang PPPA, PPTK UPTD PPA, PPTK (Umum)</li>
+                    <li>- <span className="font-semibold">Bendahara:</span> Bendahara Pengeluaran, Bendahara Pengeluaran Pembantu [Bidang]</li>
+                    <li>- <span className="font-semibold">Pimpinan/Umum:</span> Kepala Dinas, Sekretaris, Pelaksana</li>
                   </ul>
                 </div>
               </div>
@@ -233,21 +389,59 @@ export const EmployeeList: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Search & Stats */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Cari nama atau NIP..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
-          />
+      {/* Filter and Search Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Cari nama, NIP, jabatan, atau peran SPPD (PPK, PPKom, PPTK)..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm transition-all"
+            />
+          </div>
+          <div className="flex items-center gap-2 text-sm text-gray-500 px-4 py-2.5 bg-gray-50 rounded-xl whitespace-nowrap">
+            <Users className="w-4 h-4 text-blue-600" />
+            <span>Total: <strong className="text-gray-900">{filteredEmployees.length}</strong> / {employees.length} Pegawai</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-500 px-4 py-2 bg-gray-50 rounded-xl whitespace-nowrap">
-          <Users className="w-4 h-4" />
-          Total: <span className="font-bold text-gray-900">{employees.length}</span> Pegawai
+
+        {/* Role Quick Filter Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+          <span className="text-gray-400 font-bold uppercase tracking-wider text-[10px] mr-1 shrink-0">Filter Peran:</span>
+          {['Semua', 'PPTK', 'PPK', 'PPKom', 'Bendahara', 'Pelaksana'].map((role) => (
+            <button
+              key={role}
+              type="button"
+              onClick={() => setSelectedRoleFilter(role)}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all shrink-0 cursor-pointer ${
+                selectedRoleFilter === role
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {role}
+              {role !== 'Semua' && (
+                <span className={`ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] ${
+                  selectedRoleFilter === role ? 'bg-blue-700 text-white' : 'bg-gray-200 text-gray-700'
+                }`}>
+                  {employees.filter(e => {
+                    if (role === 'PPTK') return employeeHasRole(e, 'PPTK');
+                    if (role === 'PPK') return employeeHasRole(e, 'PPK');
+                    if (role === 'PPKom') return employeeHasRole(e, 'PPKOM');
+                    if (role === 'Bendahara') return employeeHasRole(e, 'bendahara');
+                    if (role === 'Pelaksana') {
+                      const r = getEmployeeRoles(e);
+                      return r.length === 0 || (r.length === 1 && r[0] === 'Pelaksana');
+                    }
+                    return true;
+                  }).length}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -257,9 +451,9 @@ export const EmployeeList: React.FC = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Pegawai</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Pegawai & Peran SPPD</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">NIP</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Jabatan</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Jabatan Kedinasan</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Pangkat/Gol</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Tingkat SPPD</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Aksi</th>
@@ -279,18 +473,20 @@ export const EmployeeList: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setViewingEmployee(emp)}
-                        className="flex items-center gap-3 text-left group/name focus:outline-none cursor-pointer"
+                        className="flex items-start gap-3 text-left group/name focus:outline-none cursor-pointer"
                         title="Klik untuk melihat detail data karyawan"
                       >
-                        <div className="w-10 h-10 rounded-full bg-blue-50 group-hover/name:bg-blue-600 group-hover/name:text-white flex items-center justify-center text-blue-600 font-bold text-sm transition-all shrink-0 shadow-xs">
+                        <div className="w-10 h-10 rounded-full bg-blue-50 group-hover/name:bg-blue-600 group-hover/name:text-white flex items-center justify-center text-blue-600 font-bold text-sm transition-all shrink-0 shadow-xs mt-0.5">
                           {emp.name.charAt(0)}
                         </div>
-                        <div>
+                        <div className="space-y-1.5 max-w-sm">
                           <p className="font-semibold text-gray-900 group-hover/name:text-blue-600 transition-colors flex items-center gap-1.5">
                             <span>{emp.name}</span>
-                            <Eye className="w-3.5 h-3.5 opacity-0 group-hover/name:opacity-100 text-blue-600 transition-opacity" />
+                            <Eye className="w-3.5 h-3.5 opacity-0 group-hover/name:opacity-100 text-blue-600 transition-opacity shrink-0" />
                           </p>
-                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{emp.jabatanSppd || '-'}</p>
+                          <div>
+                            {getJabatanSppdBadges(emp)}
+                          </div>
                         </div>
                       </button>
                     </td>
@@ -313,7 +509,7 @@ export const EmployeeList: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{emp.jabatan}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600 font-medium">{emp.jabatan}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {emp.pangkat || '-'} / {emp.golongan || '-'}
                     </td>
@@ -332,10 +528,7 @@ export const EmployeeList: React.FC = () => {
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => {
-                            setCurrentEmployee(emp);
-                            setModalOpen(true);
-                          }}
+                          onClick={() => openEditModal(emp)}
                           title="Ubah Data Karyawan"
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                         >
@@ -358,7 +551,7 @@ export const EmployeeList: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal Tambah / Edit Karyawan */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -373,70 +566,79 @@ export const EmployeeList: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
             >
               <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 shrink-0">
-                <h3 className="text-lg font-bold text-gray-900">
-                  {currentEmployee ? 'Edit Karyawan' : 'Tambah Karyawan'}
-                </h3>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">
+                      {currentEmployee ? 'Ubah Data Karyawan' : 'Tambah Karyawan Baru'}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Tentukan identitas dan peran penandatangan SPPD (dapat memilih lebih dari 1 peran).
+                    </p>
+                  </div>
+                </div>
                 <button
                   onClick={() => setModalOpen(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+                  className="p-2 text-gray-400 hover:text-gray-600 rounded-xl transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+              <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
                 {error && (
-                  <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-red-600 text-sm">
-                    <AlertCircle className="w-4 h-4" />
-                    {error}
+                  <div className="p-4 bg-red-50 text-red-700 rounded-2xl flex items-center gap-3 text-sm">
+                    <AlertCircle className="w-5 h-5 shrink-0" />
+                    <span>{error}</span>
                   </div>
                 )}
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Nama Lengkap</label>
-                  <input
-                    name="name"
-                    required
-                    defaultValue={currentEmployee?.name}
-                    className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
-                    placeholder="Masukkan nama lengkap..."
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+                {/* Profil Utama */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Nama Lengkap & Gelar</label>
+                    <input
+                      name="name"
+                      required
+                      defaultValue={currentEmployee?.name}
+                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium text-gray-900"
+                      placeholder="Contoh: Drs. H. Ahmad Fauzi, M.Si"
+                    />
+                  </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">NIP</label>
                     <input
                       name="nip"
-                      required
                       defaultValue={currentEmployee?.nip}
-                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
-                      placeholder="NIP..."
+                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-mono"
+                      placeholder="198001012005011001 atau -"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Jabatan</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Jabatan Kedinasan</label>
                     <input
                       name="jabatan"
                       required
                       defaultValue={currentEmployee?.jabatan}
                       className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
-                      placeholder="Jabatan..."
+                      placeholder="Contoh: Kepala Bidang Sosial"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Pangkat</label>
                     <input
                       name="pangkat"
                       defaultValue={currentEmployee?.pangkat}
-                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
-                      placeholder="Pangkat..."
+                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                      placeholder="Contoh: Pembina"
                     />
                   </div>
                   <div className="space-y-1">
@@ -444,70 +646,150 @@ export const EmployeeList: React.FC = () => {
                     <input
                       name="golongan"
                       defaultValue={currentEmployee?.golongan}
-                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
-                      placeholder="Golongan..."
+                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                      placeholder="Contoh: IV/a"
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Tingkat SPPD</label>
                     <select
                       name="tingkatSppd"
                       defaultValue={currentEmployee?.tingkatSppd || 'C'}
-                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
+                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-sm font-semibold"
                     >
-                      <option value="A">A</option>
-                      <option value="B">B</option>
-                      <option value="C">C</option>
-                      <option value="D">D</option>
-                      <option value="E">E</option>
-                      <option value="F">F</option>
-                      <option value="G">G</option>
-                      <option value="H">H</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Jabatan dalam SPPD</label>
-                    <select
-                      name="jabatanSppd"
-                      defaultValue={currentEmployee?.jabatanSppd || 'Pelaksana'}
-                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
-                    >
-                      <option value="Pelaksana">Pelaksana</option>
-                      <option value="Kepala Dinas">Kepala Dinas</option>
-                      <option value="Sekretaris">Sekretaris</option>
-                      <option value="PPK">PPK</option>
-                      <option value="Bendahara Pengeluaran">Bendahara Pengeluaran</option>
-                      <option value="Bendahara Pengeluaran Pembantu Sekretariat">Bendahara Pengeluaran Pembantu Sekretariat</option>
-                      <option value="Bendahara Pengeluaran Pembantu Bidang Sosial">Bendahara Pengeluaran Pembantu Bidang Sosial</option>
-                      <option value="Bendahara Pengeluaran Pembantu Bidang PPPA">Bendahara Pengeluaran Pembantu Bidang PPPA</option>
-                      <option value="Bendahara Pengeluaran Pembantu UPTD PPA">Bendahara Pengeluaran Pembantu UPTD PPA</option>
-                      <option value="PPTK (Pejabat Pelaksana Teknis Kegiatan)">PPTK (Pejabat Pelaksana Teknis Kegiatan)</option>
+                      <option value="A">A - Pejabat Eselon II / Kepala Dinas</option>
+                      <option value="B">B - Pejabat Eselon III / Kabid / Sekretaris</option>
+                      <option value="C">C - Golongan IV / Eselon IV</option>
+                      <option value="D">D - Golongan III</option>
+                      <option value="E">E - Golongan II</option>
+                      <option value="F">F - Golongan I</option>
+                      <option value="G">G - Non ASN / PTT</option>
+                      <option value="H">H - Tingkat Khusus / Lainnya</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="pt-4 flex gap-3 shrink-0">
+                {/* Multi-Role Selector */}
+                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200/80 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-blue-600" />
+                        <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                          Peran dalam SPPD (Bisa Pilih Lebih dari 1)
+                        </label>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        Centang satu atau beberapa peran. Misalnya Kepala Bidang Sosial bisa menjadi <strong>PPK</strong> sekaligus <strong>PPKom</strong>.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRoles(['Pelaksana'])}
+                      className="text-xs text-gray-500 hover:text-red-600 underline font-medium self-start sm:self-auto cursor-pointer"
+                    >
+                      Reset ke Pelaksana
+                    </button>
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      <Sparkles className="w-3 h-3 text-amber-500" />
+                      <span>Pilihan Cepat Kombinasi (Presets):</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {ROLE_PRESETS.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => applyPreset(preset.roles)}
+                          className={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold transition-all cursor-pointer ${preset.color}`}
+                        >
+                          + {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Selected Roles Preview Tags */}
+                  <div className="p-3 bg-white rounded-xl border border-gray-200/60 space-y-2">
+                    <div className="text-[11px] font-bold text-gray-600 flex items-center justify-between">
+                      <span>Peran Terpilih ({selectedRoles.length}):</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedRoles.map((role, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 text-xs font-bold rounded-lg shadow-2xs"
+                        >
+                          <span>{role}</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleRole(role)}
+                            className="text-blue-500 hover:text-red-600 p-0.5 rounded-full hover:bg-blue-100 transition-colors cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Grouped Checkboxes / Chips */}
+                  <div className="space-y-3.5 pt-1">
+                    {ROLE_GROUPS.map((group, gIdx) => (
+                      <div key={gIdx} className="space-y-1.5">
+                        <p className="text-[11px] font-bold text-gray-700">{group.category}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {group.roles.map((role, rIdx) => {
+                            const isSelected = selectedRoles.includes(role);
+                            return (
+                              <button
+                                key={rIdx}
+                                type="button"
+                                onClick={() => toggleRole(role)}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-left transition-all cursor-pointer border ${
+                                  isSelected
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                                }`}
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className="w-4 h-4 shrink-0 text-white" />
+                                ) : (
+                                  <Square className="w-4 h-4 shrink-0 text-gray-400" />
+                                )}
+                                <span className="truncate">{role}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-2 flex gap-3 shrink-0">
                   <button
                     type="button"
                     onClick={() => setModalOpen(false)}
-                    className="flex-1 px-4 py-3 text-gray-600 font-medium hover:bg-gray-50 rounded-xl transition-all"
+                    className="flex-1 px-4 py-3 text-gray-600 font-medium hover:bg-gray-50 rounded-xl transition-all cursor-pointer"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-3 rounded-xl transition-all font-bold shadow-lg shadow-blue-100"
+                    className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-3 rounded-xl transition-all font-bold shadow-lg shadow-blue-100 cursor-pointer"
                   >
                     {isLoading ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <>
                         <Check className="w-5 h-5" />
-                        Simpan Data
+                        Simpan Data Pegawai
                       </>
                     )}
                   </button>
@@ -637,14 +919,14 @@ export const EmployeeList: React.FC = () => {
                   </div>
 
                   {/* Jabatan dalam SPPD */}
-                  <div className="p-3.5 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-1">
+                  <div className="p-3.5 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-1.5 sm:col-span-2">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 uppercase tracking-wider">
                       <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>Jabatan dalam SPPD</span>
+                      <span>Peran dalam SPPD</span>
                     </div>
-                    <p className="text-sm font-bold text-indigo-950">
-                      {viewingEmployee.jabatanSppd || 'Pelaksana'}
-                    </p>
+                    <div>
+                      {getJabatanSppdBadges(viewingEmployee)}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -663,8 +945,7 @@ export const EmployeeList: React.FC = () => {
                   onClick={() => {
                     const emp = viewingEmployee;
                     setViewingEmployee(null);
-                    setCurrentEmployee(emp);
-                    setModalOpen(true);
+                    openEditModal(emp);
                   }}
                   className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-blue-200 transition-all cursor-pointer"
                 >
